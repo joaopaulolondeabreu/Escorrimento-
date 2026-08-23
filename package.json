@@ -1,0 +1,24 @@
+{
+  "name": "escorrimento-cfd",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Simulador CFD (FLIP/APIC) de captação de água por locomotiva, com validação analítica",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "validate": "tsx src/tests/validate.ts"
+  },
+  "dependencies": {
+    "gl-matrix": "^3.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.2",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}
