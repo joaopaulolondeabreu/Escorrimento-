@@ -1,8 +1,0 @@
-[V=12] grade 92x70x29 dx=4.13cm particulas=280456
-[V=12] t=0.43s n=368167 pIt=29
-[V=12] t=0.94s n=374288 pIt=30
-[V=12] t=1.45s n=379297 pIt=29
-[V=12] t=1.95s n=379582 pIt=30
-[V=12] t=2.45s n=378201 pIt=29
-[V=12] t=2.95s n=378682 pIt=29
-[V=12] concluído em 2231s → relatorios/ponto3d-V12.json
