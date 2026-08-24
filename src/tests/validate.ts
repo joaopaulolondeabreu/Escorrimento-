@@ -29,7 +29,7 @@ const skip3d = args.includes('--skip3d');
 const quick = args.includes('--quick');
 
 const V3D = [5, 6, 8, 10, 12, 15];
-const NX3D = 96;
+const NX3D = 82;
 
 interface Point3D {
   V: number; vNozzle: number; flux: number; overpressureC: number;

@@ -32,13 +32,19 @@ export function defaultIntake3DParams(): Intake3DParams {
     wallT: 0.012,
     elbowR: 0.15,
     horizLen: 0.5,
-    waterDepth: 0.30,
-    mouthDepth: 0.15,   // centro da boca (ver nota em intake2d.ts)
-    domainL: 4.5,
-    domainH: 2.6,
-    domainW: 1.2,
-    tubeX: 2.2,
-    resW: 1.0,
+    // Canal mais fundo que o padrão 2D (0.45 vs 0.30 m): na resolução da
+    // validação (Δx ≈ 4.7 cm) a parede efetiva do tubo engorda para
+    // ~1.6·Δx e o clamp de consistência empurraria a boca para fora da
+    // água (lábio superior emerso → ingestão de ar → v despenca). A teoria
+    // de §1.2 NÃO depende da profundidade do canal — só exige captura
+    // limpa com a boca submersa. Decisão documentada em VALIDACAO.md.
+    waterDepth: 0.45,
+    mouthDepth: 0.24,   // centro da boca (lábio superior ~0.115 m submerso)
+    domainL: 3.8,
+    domainH: 2.8,
+    domainW: 1.0,       // bloqueio frontal ~11% — a água contorna dos lados
+    tubeX: 1.9,
+    resW: 0.9,
     drain: true,        // validação roda longa em regime permanente
   };
 }
@@ -296,8 +302,9 @@ export function measureIntake3d(s: Solver3D, p: Intake3DParams): Intake3DMeasure
         const [u1, v1, w1] = s.sampleVel(x, y, z);
         const [u2, v2, w2] = s.sampleVel(x + 0.5 * dtT * u1, y + 0.5 * dtT * v1, z + 0.5 * dtT * w1);
         x += dtT * u2; y += dtT * v2; z += dtT * w2;
-        if (x < geo.xC && y > geo.yC + p.elbowR &&
-            Math.hypot(x - geo.xTube, z - geo.zC) < p.D / 2 + p.elbowR) {
+        // capturado: DENTRO do trecho vertical interno, acima do cotovelo
+        if (y > geo.yC + p.D / 2 + p.elbowR &&
+            Math.hypot(x - geo.xTube, z - geo.zC) < 0.9 * p.D / 2) {
           isCap = true;
           break;
         }

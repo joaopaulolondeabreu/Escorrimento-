@@ -197,8 +197,12 @@ void main() {
   vec3 n = normalize(vec3(-(gradH * 34.0 + ripple), 1.0));
 
   // ---- refração com dispersão cromática (n_agua = 1.333)
+  // Deslocamento em unidades FÍSICAS (metros × px/m): consistente com o
+  // zoom — em UV cru o close-up amostraria o cenário a metros de distância.
   float thick = clamp(D, 0.0, 3.0);
-  vec2 refrBase = n.xy * 0.075 * thick;
+  float thickM = thick * 0.11;                      // espessura óptica [m]
+  vec2 refrPx = n.xy * 0.30 * thickM * uPxPerMeter; // deslocamento [px]
+  vec2 refrBase = refrPx / uView;
   vec2 flipY = vec2(1.0, -1.0);
   float rR = texture(uBackground, uvBg + refrBase * 0.94 * flipY * surf).r;
   float rG = texture(uBackground, uvBg + refrBase * 1.00 * flipY * surf).g;
@@ -211,8 +215,9 @@ void main() {
   // SUBMERSÃO aparente (marcha curta para cima no campo de densidade:
   // quanto mais água acima, mais fundo — água funda fica mais escura).
   float above = 0.0;
+  float stepPx = 0.045 * uPxPerMeter; // amostras a cada ~4.5 cm de mundo
   for (float o = 1.0; o <= 4.0; o += 1.0) {
-    above += texture(uDensity, uv + vec2(0.0, texel.y * o * 7.0)).r;
+    above += texture(uDensity, uv + vec2(0.0, texel.y * o * stepPx)).r;
   }
   float submerge = clamp(above * 0.35, 0.0, 2.5);
   float path = thick * 1.9 + submerge * 2.4;
@@ -265,6 +270,19 @@ void main() {
     vec3 sprayCol = mix(vec3(0.85, 0.92, 0.97), vec3(1.3), sparkle);
     water = mix(water, sprayCol, clamp(spray, 0.0, 1.0) * 0.85);
     surf = max(surf, spray * 0.9);
+  }
+
+  // ---- linha d'água: menisco fino escuro na fronteira água-ar e crista
+  // sutilmente clara. Bandas definidas em LARGURA DE TELA (fwidth), não em
+  // densidade — senão em zoom alto virariam listras largas.
+  {
+    float bw = fwidth(D) * 2.0 + 1e-4;
+    float edgeBand = smoothstep(0.42 - 3.0 * bw, 0.42 - bw, D)
+                   * (1.0 - smoothstep(0.42 + bw, 0.42 + 3.0 * bw, D));
+    water *= 1.0 - 0.30 * edgeBand;
+    float crest = smoothstep(0.42 + bw, 0.42 + 3.0 * bw, D)
+                * (1.0 - smoothstep(0.42 + 3.0 * bw, 0.42 + 6.0 * bw, D));
+    water += vec3(0.10, 0.12, 0.12) * crest * clamp(gradH.y * 30.0, 0.0, 1.0);
   }
 
   // ---- cáusticas no leito: rede de Worley animada projetada no fundo
@@ -340,7 +358,7 @@ void main() {
   vec3 col;
   if (uChroma) {
     // aberração cromática sutil, radial
-    vec2 d = (uv - 0.5) * 0.0035;
+    vec2 d = (uv - 0.5) * 0.0012;
     col = vec3(
       texture(uScene, uv + d).r,
       texture(uScene, uv).g,
