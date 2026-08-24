@@ -34,7 +34,54 @@ function makeRnd(seed: number): () => number {
   };
 }
 
-/** Pinta o cenário completo no canvas (usado como textura de refração). */
+/**
+ * Fundo NEUTRO (padrão): gradiente de estúdio + luz-chave suave — nada
+ * compete com a água; a refração continua tendo o que distorcer (o
+ * gradiente e o leito), que é o que faz a água "ler" como água.
+ */
+export function paintBackgroundNeutral(
+  ctx: CanvasRenderingContext2D, cam: Camera2D, geo: GeometryInfo,
+): void {
+  const W = cam.viewW, H = cam.viewH;
+  const toS = (x: number, y: number) => worldToScreen(cam, x, y);
+
+  // Gradiente vertical frio e calmo
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#262b33');
+  g.addColorStop(0.55, '#3a414b');
+  g.addColorStop(1, '#2b3138');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // Luz-chave suave no alto à direita (coerente com o especular da água)
+  {
+    const [kx, ky] = toS(geo.domainW * 0.85, geo.domainH * 0.82);
+    const rg = ctx.createRadialGradient(kx, ky, 10, kx, ky, H * 0.7);
+    rg.addColorStop(0, 'rgba(235,240,248,0.20)');
+    rg.addColorStop(0.4, 'rgba(220,228,240,0.08)');
+    rg.addColorStop(1, 'rgba(220,228,240,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Linha do nível d'água de referência (sutil, ajuda a leitura)
+  {
+    const [, yw] = toS(0, geo.waterDepth);
+    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+    ctx.fillRect(0, yw, W, 1);
+  }
+
+  // Leito do canal: faixa escura discreta + subsolo quase preto
+  {
+    const [, yBed] = toS(0, 0);
+    ctx.fillStyle = '#20262b';
+    ctx.fillRect(0, yBed, W, Math.min(12, Math.max(0, H - yBed)));
+    ctx.fillStyle = '#111417';
+    ctx.fillRect(0, yBed + 12, W, Math.max(0, H - yBed - 12));
+  }
+}
+
+/** Cenário ilustrativo completo (opcional — toggle "Cenário de fundo"). */
 export function paintBackground(
   ctx: CanvasRenderingContext2D, cam: Camera2D, geo: GeometryInfo,
 ): void {

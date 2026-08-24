@@ -1,3 +1,1 @@
-[V=5] grade 82x60x22 dx=4.63cm particulas=134704
-[V=5] t=1.26s n=186585 pIt=32
-[V=5] t=2.28s n=209660 pIt=32
+[V=5] grade 92x70x29 dx=4.13cm particulas=280456

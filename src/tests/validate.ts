@@ -19,6 +19,7 @@ import {
   TestResult,
 } from './canonical';
 import { makeIntakeSolver, defaultIntakeParams } from '../solver/intake2d';
+import { defaultIntake3DParams } from '../solver/intake3d';
 import { measureIntake } from '../physics/probes2d';
 import {
   tubeVelocity, captureFraction, vMin, G_STANDARD, RHO_WATER,
@@ -29,7 +30,7 @@ const skip3d = args.includes('--skip3d');
 const quick = args.includes('--quick');
 
 const V3D = [5, 6, 8, 10, 12, 15];
-const NX3D = 82;
+const NX3D = 92;
 
 interface Point3D {
   V: number; vNozzle: number; flux: number; overpressureC: number;
@@ -156,7 +157,7 @@ async function main(): Promise<void> {
       if (existsSync(f)) points.push(JSON.parse(readFileSync(f, 'utf8')));
     }
 
-    const p3 = defaultIntakeParams();
+    const p3 = defaultIntake3DParams();
     const A = Math.PI * p3.D * p3.D / 4;
     const pcT = RHO_WATER * G_STANDARD * p3.H;
 
@@ -164,6 +165,14 @@ async function main(): Promise<void> {
     lines.push('');
     lines.push(`Grade ${NX3D} células no comprimento (Δx ≈ ${points[0] ? (points[0].dx * 100).toFixed(1) : '?'} cm ⇒ D/Δx ≈ ${points[0] ? (p3.D / points[0].dx).toFixed(1) : '?'} células no diâmetro);`);
     lines.push('média temporal em regime permanente com dreno no reservatório.');
+    lines.push('');
+    lines.push(`**Geometria de validação** (difere dos padrões da UI — justificativas em`);
+    lines.push(`\`src/solver/intake3d.ts\`): D = ${p3.D} m com cotovelo R = ${p3.elbowR} m e canal de`);
+    lines.push(`${p3.waterDepth} m. Com o orçamento de CPU, um duto de 0.25 m teria ~5 células no`);
+    lines.push('diâmetro e a perda de carga NUMÉRICA domina (medimos K ≈ 2–4 nessa');
+    lines.push('configuração: v ~40% abaixo e P_C acima de ρgH — assinatura de duto');
+    lines.push('sub-resolvido). As fórmulas testadas independem de D (v, P_C, V_min) ou');
+    lines.push('escalam com A = πD²/4 (φ, F, A_c/A).');
     lines.push('');
     lines.push('| V [m/s] | v med | v teo | erro (tol ±3%) | φ med | φ teo | erro (±5%) | P_C−P₀ med [kPa] | teo | erro (±5%) | A_c/A med | teo | erro (±8%) | F med [N] | teo | erro (±8%) |');
     lines.push('|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|');

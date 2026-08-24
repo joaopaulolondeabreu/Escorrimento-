@@ -24,7 +24,9 @@
 import { createProgram, createFbo, createQuad, Fbo } from './gl';
 import { viridis, coolwarm } from './colormap';
 import type { FrameMsg, GeometryInfo, FieldKind } from '../app/protocol';
-import { Camera2D, paintBackground, paintSolids, worldToScreen } from './background';
+import {
+  Camera2D, paintBackground, paintBackgroundNeutral, paintSolids, worldToScreen,
+} from './background';
 import {
   FULLSCREEN_VS, SPLAT_VS, SPLAT_FS, BILATERAL_FS,
   WATER_COMPOSITE_FS, BRIGHT_FS, BLUR_FS, POST_FS,
@@ -48,6 +50,9 @@ export interface RenderOptions {
   post: PostOptions;
   /** Velocidade do trem (escala de espuma e deriva das ondulações). */
   vRef: number;
+  /** Cenário ilustrativo (céu/colinas/brita). false = fundo neutro de
+   *  estúdio que prioriza a leitura da água. */
+  scenery: boolean;
 }
 
 const POINTS_VS = `#version 300 es
@@ -216,14 +221,15 @@ export class Renderer {
     this.bloomB = mk(hw, hh);
   }
 
-  private updateBackground(cam: Camera2D, geo: GeometryInfo): void {
-    const key = `${cam.scale.toFixed(2)}|${cam.cx.toFixed(3)}|${cam.cy.toFixed(3)}|${cam.viewW}x${cam.viewH}`;
+  private updateBackground(cam: Camera2D, geo: GeometryInfo, scenery: boolean): void {
+    const key = `${cam.scale.toFixed(2)}|${cam.cx.toFixed(3)}|${cam.cy.toFixed(3)}|${cam.viewW}x${cam.viewH}|${scenery ? 1 : 0}`;
     if (!this.bgDirty && key === this.lastCamKey) return;
     this.lastCamKey = key;
     this.bgDirty = false;
     this.bgCanvas.width = cam.viewW;
     this.bgCanvas.height = cam.viewH;
-    paintBackground(this.bgCtx, cam, geo);
+    if (scenery) paintBackground(this.bgCtx, cam, geo);
+    else paintBackgroundNeutral(this.bgCtx, cam, geo);
     paintSolids(this.bgCtx, cam, geo, 'steel');
     const gl = this.gl;
     gl.bindTexture(gl.TEXTURE_2D, this.bgTex);
@@ -274,7 +280,7 @@ export class Renderer {
   private renderWater(frame: FrameMsg, geo: GeometryInfo, cam: Camera2D, opts: RenderOptions): void {
     const gl = this.gl;
     const w = this.canvas.width, h = this.canvas.height;
-    this.updateBackground(cam, geo);
+    this.updateBackground(cam, geo, opts.scenery);
     this.ensureFbos();
 
     // 1) splat de momentos
@@ -323,6 +329,7 @@ export class Renderer {
     gl.uniform1f(this.uni(this.compositeProg, 'uVref'), opts.vRef);
     gl.uniform1f(this.uni(this.compositeProg, 'uPxPerMeter'), cam.scale);
     gl.uniform1i(this.uni(this.compositeProg, 'uFoam'), opts.post.foam ? 1 : 0);
+    gl.uniform1i(this.uni(this.compositeProg, 'uScenery'), opts.scenery ? 1 : 0);
     // sol na tela (uv, origem embaixo) — coerente com o fundo pintado
     {
       const [sx, sy] = worldToScreen(cam, geo.domainW * 0.85, geo.domainH * 0.82);

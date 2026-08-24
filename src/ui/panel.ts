@@ -29,6 +29,7 @@ export interface PanelState {
   foam: boolean;
   bloom: boolean;
   chroma: boolean;
+  scenery: boolean;
 }
 
 export interface PanelCallbacks {
@@ -163,6 +164,9 @@ export class Panel {
     vis.appendChild(labelRow('Campo (científico)', fieldSel, ''));
 
     const visToggles = div('botoes');
+    visToggles.appendChild(toggle('Cenário de fundo', this.state.scenery,
+      'Liga o cenário ilustrativo (céu, colinas, brita, trilho). Desligado: fundo neutro de estúdio que prioriza a leitura das texturas da água.',
+      (v) => { this.state.scenery = v; this.cb.onLight(); }));
     visToggles.appendChild(toggle('Partículas', this.state.showParticles,
       'Mostra as partículas do FLIP sobre o campo (modo científico).',
       (v) => { this.state.showParticles = v; this.cb.onLight(); }));

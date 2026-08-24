@@ -28,23 +28,34 @@ export function defaultIntake3DParams(): Intake3DParams {
   return {
     V: 8.0,
     H: 1.0,
-    D: 0.25,
+    // GEOMETRIA DE VALIDAÇÃO (difere dos padrões da UI 2D; decisões
+    // documentadas em VALIDACAO.md):
+    //
+    // D = 0.40 m (UI: 0.25): com o orçamento de CPU a grade dá Δx ≈ 4 cm;
+    // um duto de 0.25 m teria ~5 células no diâmetro e a perda de carga
+    // NUMÉRICA domina (medimos K ≈ 2–4: v ~40% abaixo e P_C acima de ρgH,
+    // a assinatura clássica de duto sub-resolvido). As grandezas testadas
+    // não dependem de D (v, P_C, V_min) ou escalam com A = πD²/4 (φ, F,
+    // A_c/A) — aumentar D melhora a resolução do duto sem tocar a teoria.
+    //
+    // elbowR = 0.30 (> D/2, cotovelo geometricamente válido e suave — o
+    // limite ideal da teoria pede perda de cotovelo mínima).
+    //
+    // Canal mais fundo (0.55 m): a parede efetiva engorda para 1.6·Δx e o
+    // clamp de consistência empurraria a boca para fora da água (lábio
+    // emerso → ingestão de ar). A teoria não depende da profundidade do
+    // canal — só exige a boca inteira submersa e captura limpa.
+    D: 0.40,
     wallT: 0.012,
-    elbowR: 0.15,
+    elbowR: 0.30,
     horizLen: 0.5,
-    // Canal mais fundo que o padrão 2D (0.45 vs 0.30 m): na resolução da
-    // validação (Δx ≈ 4.7 cm) a parede efetiva do tubo engorda para
-    // ~1.6·Δx e o clamp de consistência empurraria a boca para fora da
-    // água (lábio superior emerso → ingestão de ar → v despenca). A teoria
-    // de §1.2 NÃO depende da profundidade do canal — só exige captura
-    // limpa com a boca submersa. Decisão documentada em VALIDACAO.md.
-    waterDepth: 0.45,
-    mouthDepth: 0.24,   // centro da boca (lábio superior ~0.115 m submerso)
+    waterDepth: 0.55,
+    mouthDepth: 0.265,  // centro da boca; lábio superior ~0.065 m submerso
     domainL: 3.8,
-    domainH: 2.8,
-    domainW: 1.0,       // bloqueio frontal ~11% — a água contorna dos lados
+    domainH: 2.9,
+    domainW: 1.2,       // bloqueio frontal ~19% — a água contorna dos lados
     tubeX: 1.9,
-    resW: 0.9,
+    resW: 1.0,
     drain: true,        // validação roda longa em regime permanente
   };
 }

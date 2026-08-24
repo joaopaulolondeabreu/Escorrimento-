@@ -60,6 +60,7 @@ const state: PanelState = {
   showParticles: true, showVectors: false, showTracers: true,
   aces: true, vignette: true, grain: true, foam: true,
   bloom: true, chroma: true,
+  scenery: false,
 };
 
 let geometry: GeometryInfo | null = null;
@@ -455,6 +456,7 @@ function tick(): void {
         bloom: state.bloom, chroma: state.chroma,
       },
       vRef: state.V,
+      scenery: state.scenery,
     } as const;
     renderer?.render(lastFrame, geometry, cam, opts);
     fallback?.render(lastFrame, geometry, cam, opts);

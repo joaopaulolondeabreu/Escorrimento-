@@ -136,17 +136,23 @@ uniform vec2 uSunUv;           // posição do sol na tela (uv, origem embaixo)
 uniform vec2 uFlowDir;         // direção média do escoamento (tela)
 uniform float uPxPerMeter;
 uniform bool uFoam;
+uniform bool uScenery;
 out vec4 frag;
 
 ${NOISE_GLSL}
 
-// Céu procedural para reflexos (coerente com o fundo pintado)
+// Ambiente refletido: céu de fim de tarde (cenário ligado) ou estúdio
+// neutro frio (padrão — nada compete com a água)
 vec3 envSky(vec3 dir) {
   float t = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
-  vec3 horizon = vec3(0.91, 0.62, 0.42);
-  vec3 zenith = vec3(0.17, 0.24, 0.42);
-  vec3 sky = mix(horizon, zenith, pow(t, 0.8));
-  return sky;
+  if (uScenery) {
+    vec3 horizon = vec3(0.91, 0.62, 0.42);
+    vec3 zenith = vec3(0.17, 0.24, 0.42);
+    return mix(horizon, zenith, pow(t, 0.8));
+  }
+  vec3 horizon = vec3(0.42, 0.46, 0.52);
+  vec3 zenith = vec3(0.14, 0.16, 0.20);
+  return mix(horizon, zenith, pow(t, 0.8));
 }
 
 // GGX (Trowbridge-Reitz) — especular físico (§5.1.5)
@@ -237,16 +243,18 @@ void main() {
   float fresnel = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
   vec3 reflDir = reflect(-viewDir, n);
   vec3 env = envSky(reflDir);
-  // brilho do sol no reflexo
+  // brilho da luz principal no reflexo (quente com cenário; branca no estúdio)
   float sunGlint = pow(max(dot(reflDir, sunDir), 0.0), 60.0);
-  env += vec3(1.4, 1.15, 0.85) * sunGlint * 2.0;
+  vec3 glintCol = uScenery ? vec3(1.4, 1.15, 0.85) : vec3(1.25, 1.3, 1.4);
+  env += glintCol * sunGlint * 2.0;
   water = mix(water, env, clamp(fresnel * 1.6, 0.0, 0.55));
 
   // ---- especular GGX do sol (rugosidade sobe com a turbulência)
   vec3 h = normalize(sunDir + viewDir);
   float rough = mix(0.03, 0.28, smoothstep(0.03, 0.3, turb));
   float spec = ggx(n, h, rough) * fresnel;
-  water += vec3(1.3, 1.1, 0.85) * spec * 0.65;
+  vec3 specCol = uScenery ? vec3(1.3, 1.1, 0.85) : vec3(1.15, 1.22, 1.3);
+  water += specCol * spec * 0.65;
 
   // ---- espuma por variância local (critério físico invariante) com
   // textura procedural rendada + borbulhas
@@ -290,7 +298,8 @@ void main() {
   float below = smoothstep(0.5, 1.2, D);
   float caust = pow(1.0 - worley(wuv * 34.0 + vec2(uTime * 0.5, uTime * 0.23)
                 + vec2(fbm(wuv * 8.0 + uTime * 0.2)) * 1.4), 3.0);
-  bg += vec3(1.0, 0.95, 0.8) * caust * below * 0.30 * T.g;
+  vec3 caustCol = uScenery ? vec3(1.0, 0.95, 0.8) : vec3(0.9, 0.97, 1.0);
+  bg += caustCol * caust * below * 0.30 * T.g;
 
   vec3 col = mix(bg, water, surf);
   frag = vec4(col, 1.0);
