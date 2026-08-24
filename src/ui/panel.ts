@@ -203,10 +203,14 @@ export class Panel {
     for (const [id, nome, tip] of presets) {
       camBtns.appendChild(button(nome, tip, () => this.cb.onCamera(id)));
     }
-    const orb = button('Orbital', 'Órbita lenta — disponível apenas no modo 3D (não implementado nesta versão; ver README §Limitações)', () => {});
+    const orb = button('Orbital', 'Órbita lenta — disponível apenas no modo 3D interativo (não implementado nesta versão; ver README §Limitações)', () => {});
     orb.disabled = true;
     camBtns.appendChild(orb);
     cam.appendChild(camBtns);
+    const d3 = button('Modo 3D interativo', 'O solver 3D existe e é usado pela validação quantitativa headless (npm run validate → docs/VALIDACAO.md), mas não roda em tempo real na CPU do navegador. Ver README §Limitações e decisões de engenharia.', () => {});
+    d3.disabled = true;
+    cam.appendChild(labelRow('Dimensão', d3,
+      'A simulação interativa é o corte 2D; a comparação quantitativa com a teoria roda em 3D fora do navegador.'));
     el.appendChild(cam);
 
     // ---- medição

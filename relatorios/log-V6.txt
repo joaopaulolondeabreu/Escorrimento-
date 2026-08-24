@@ -1,3 +1,4 @@
 [V=6] grade 82x60x22 dx=4.63cm particulas=134704
 [V=6] t=1.09s n=186472 pIt=30
 [V=6] t=1.87s n=212132 pIt=25
+[V=6] t=2.94s n=204581 pIt=30

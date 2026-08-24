@@ -52,7 +52,11 @@ export class Hud {
     const pi = this.smooth('pi', Math.abs(m.power));
     const hj = this.smooth('hj', m.jetHeight);
 
-    const row = (nome: string, med: number, teo: number, un: string, digits = 2): string => {
+    const row = (nome: string, med: number, teo: number, un: string, digits = 2, nota = ''): string => {
+      if (nota) {
+        return `<tr><td>${nome}</td><td>${med.toFixed(digits)}</td>` +
+          `<td>${teo.toFixed(digits)}</td><td class="warn">${nota}</td><td class="un">${un}</td></tr>`;
+      }
       const err = teo !== 0 ? (100 * (med - teo)) / Math.abs(teo) : 0;
       const errCls = Math.abs(err) < 8 ? 'ok' : Math.abs(err) < 20 ? 'warn' : 'bad';
       return `<tr><td>${nome}</td><td>${med.toFixed(digits)}</td>` +
@@ -72,7 +76,8 @@ export class Hud {
         ${row('A_c/A', ac, acT, '—')}
         ${row('F (arrasto/largura)', f / 1000, fT / 1000, 'kN/m')}
         ${row('Π (potência/largura)', pi / 1000, piT / 1000, 'kW/m')}
-        ${row('h do jato', hj, hjT, 'm')}
+        ${row('h do jato', hj, hjT, 'm', 2,
+          hjT > p.domainH - (p.waterDepth + p.H) - 0.1 ? 'truncado pelo teto' : '')}
       </table>
       <div class="hud-diag">
         <span title="máx |∇·u|·Δx/|u|max após a projeção — deve ficar ≈ 0">div: ${d.maxDivergence.toExponential(1)}</span>
