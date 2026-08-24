@@ -59,6 +59,7 @@ const state: PanelState = {
   mode: 'cinematic', field: 'speed',
   showParticles: true, showVectors: false, showTracers: true,
   aces: true, vignette: true, grain: true, foam: true,
+  bloom: true, chroma: true,
 };
 
 let geometry: GeometryInfo | null = null;
@@ -450,6 +451,7 @@ function tick(): void {
       post: {
         aces: state.aces, vignette: state.vignette,
         grain: state.grain, foam: state.foam,
+        bloom: state.bloom, chroma: state.chroma,
       },
       vRef: state.V,
     } as const;

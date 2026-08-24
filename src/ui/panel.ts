@@ -27,6 +27,8 @@ export interface PanelState {
   vignette: boolean;
   grain: boolean;
   foam: boolean;
+  bloom: boolean;
+  chroma: boolean;
 }
 
 export interface PanelCallbacks {
@@ -175,11 +177,15 @@ export class Panel {
     const postToggles = div('botoes');
     postToggles.appendChild(toggle('ACES', this.state.aces, 'Mapeamento de tons ACES Filmic (§5.3).',
       (v) => { this.state.aces = v; this.cb.onLight(); }));
+    postToggles.appendChild(toggle('Bloom', this.state.bloom, 'Brilho difuso nos reflexos intensos (bright-pass + blur).',
+      (v) => { this.state.bloom = v; this.cb.onLight(); }));
+    postToggles.appendChild(toggle('Aberração', this.state.chroma, 'Aberração cromática radial sutil.',
+      (v) => { this.state.chroma = v; this.cb.onLight(); }));
     postToggles.appendChild(toggle('Vinheta', this.state.vignette, 'Escurecimento sutil das bordas.',
       (v) => { this.state.vignette = v; this.cb.onLight(); }));
     postToggles.appendChild(toggle('Grão', this.state.grain, 'Grão de filme sutil.',
       (v) => { this.state.grain = v; this.cb.onLight(); }));
-    postToggles.appendChild(toggle('Espuma', this.state.foam, 'Espuma e spray por critério físico (velocidade × densidade).',
+    postToggles.appendChild(toggle('Espuma', this.state.foam, 'Espuma e spray por critério físico (variância local de velocidade).',
       (v) => { this.state.foam = v; this.cb.onLight(); }));
     vis.appendChild(labelRow('Pós-processamento', postToggles, 'Cada efeito tem chave individual (§5.3).'));
     el.appendChild(vis);

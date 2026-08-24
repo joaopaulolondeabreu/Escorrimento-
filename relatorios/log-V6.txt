@@ -1,0 +1,5 @@
+[V=6] grade 96x55x26 dx=4.69cm particulas=127203
+[V=6] t=0.69s n=170010 pIt=23
+[V=6] t=1.39s n=188435 pIt=24
+[V=6] t=1.80s n=200419 pIt=25
+[V=6] t=2.11s n=213239 pIt=23
