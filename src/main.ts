@@ -166,7 +166,10 @@ const panel = new Panel(document.getElementById('painel')!, state, {
       showSweepPanel = true;
       return;
     }
-    downloadText('varredura.csv', sweepToCsv(sweepPoints, state.H, state.D, RHO_WATER));
+    downloadText('varredura.csv', sweepToCsv(
+      sweepPoints, state.H, state.D, RHO_WATER,
+      geometry ? Math.max(0, geometry.waterDepth - geometry.yC) : 0,
+    ));
   },
   onRecord: () => toggleRecording(),
 });
@@ -405,8 +408,11 @@ function drawSweepPanel(ctx: CanvasRenderingContext2D, W: number, H: number): vo
 
   mk('v no bocal', 'v [m/s]', (p) => p.vNozzle, (V) => tubeVelocity(V, state.H));
   mk('Vazão por largura', 'φ [m²/s]', (p) => p.flux, (V) => state.D * tubeVelocity(V, state.H));
-  mk('P_C − P₀ (deve ser reta ρgH)', 'kPa',
-    (p) => p.overpressureC / 1000, () => RHO_WATER * G_STANDARD * state.H / 1000);
+  // Teoria de P_C avaliada na posição da sonda: ρg(H + d_C), com d_C a
+  // submersão da sonda — a INDEPENDÊNCIA DE V (reta horizontal) é o teste
+  const dC = geometry ? Math.max(0, geometry.waterDepth - geometry.yC) : 0;
+  mk('P_C − P₀ na sonda (reta: ρg(H+d_C))', 'kPa',
+    (p) => p.overpressureC / 1000, () => RHO_WATER * G_STANDARD * (state.H + dC) / 1000);
   mk('Fração captada', 'A_c/A', (p) => p.captureFraction, (V) => captureFraction(V, state.H));
   {
     const { c1, c2 } = powerCoefficients({ V: 0, H: state.H, A: state.D, rho: RHO_WATER, g: G_STANDARD });
@@ -461,7 +467,7 @@ function tick(): void {
     renderer?.render(lastFrame, geometry, cam, opts);
     fallback?.render(lastFrame, geometry, cam, opts);
     drawOverlay(lastFrame);
-    hud.update(lastFrame, intakeFromState(), RHO_WATER);
+    hud.update(lastFrame, intakeFromState(), RHO_WATER, geometry);
 
     if (recorder && recordCtx && recordCanvas) {
       if (recordCanvas.width !== glCanvas.width || recordCanvas.height !== glCanvas.height) {

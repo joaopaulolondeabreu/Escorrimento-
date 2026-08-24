@@ -6,9 +6,11 @@
  *  - APIC com B-spline quadrática e reconstrução afim por mínimos
  *    quadrados ponderados CENTRADOS (C = Cov(r,u)·Cov(r,r)⁻¹, 3×3);
  *  - projeção de pressão MIC(0)-PCG 7 pontos com ghost-fluid;
- *  - viscosidade explícita + Smagorinsky (em 3D, com ν nominal da água e
- *    Δx ≥ 2 cm, o número de difusão Δt·ν/Δx² < 1e-5 — o passo implícito
- *    do 2D seria custo puro sem efeito mensurável; decisão documentada);
+ *  - viscosidade molecular explícita apenas; SEM modelo LES no 3D (o
+ *    parâmetro smagorinskyCs é ignorado aqui — a validação §7.2 é o limite
+ *    ideal free-slip, onde ν_t só ADICIONARIA dissipação; com ν nominal e
+ *    Δx ≥ 2 cm o número de difusão Δt·ν/Δx² < 1e-5; decisão documentada em
+ *    NUMERICA.md §5 — achado da revisão adversarial tornado explícito);
  *  - advecção RK3 (Ralston), reamostragem conservadora, determinismo.
  *
  * Este solver é usado pela validação quantitativa (§7.2) em modo headless.
@@ -117,6 +119,7 @@ export class Solver3D {
   private Ax: Float64Array; private Ay: Float64Array; private Az: Float64Array;
   private rhs: Float64Array; private precon: Float64Array;
   private rr: Float64Array; private zz: Float64Array; private ss: Float64Array;
+  private pPrev: Float64Array;
 
   private cellCount: Int32Array;
   private hasParticles: Uint8Array;
@@ -160,6 +163,7 @@ export class Solver3D {
     this.Ax = new Float64Array(nc); this.Ay = new Float64Array(nc); this.Az = new Float64Array(nc);
     this.rhs = new Float64Array(nc); this.precon = new Float64Array(nc);
     this.rr = new Float64Array(nc); this.zz = new Float64Array(nc); this.ss = new Float64Array(nc);
+    this.pPrev = new Float64Array(nc);
     this.cellCount = new Int32Array(nc);
     this.hasParticles = new Uint8Array(nc);
 
@@ -640,10 +644,13 @@ export class Solver3D {
           // y−
           {
             const wgt = this.vW[this.iv(i, j, k)];
-            if (wgt > 0 && j > 0) {
-              const t = this.cellType[c - nx];
-              if (t === FLUID) Adiag[c] += wgt;
-              else if (t === AIR) Adiag[c] += wgt / this.theta(c, c - nx);
+            if (wgt > 0) {
+              if (j > 0) {
+                const t = this.cellType[c - nx];
+                if (t === FLUID) Adiag[c] += wgt;
+                else if (t === AIR) Adiag[c] += wgt / this.theta(c, c - nx);
+              } else if (bc.yLo.kind === 'open') Adiag[c] += wgt;
+              // (consistência matriz↔gradiente — achado da revisão)
             }
           }
           // z+
@@ -660,10 +667,12 @@ export class Solver3D {
           // z−
           {
             const wgt = this.wW[this.iw(i, j, k)];
-            if (wgt > 0 && k > 0) {
-              const t = this.cellType[c - nxy];
-              if (t === FLUID) Adiag[c] += wgt;
-              else if (t === AIR) Adiag[c] += wgt / this.theta(c, c - nxy);
+            if (wgt > 0) {
+              if (k > 0) {
+                const t = this.cellType[c - nxy];
+                if (t === FLUID) Adiag[c] += wgt;
+                else if (t === AIR) Adiag[c] += wgt / this.theta(c, c - nxy);
+              } else if (bc.zLo.kind === 'open') Adiag[c] += wgt;
             }
           }
           if (Adiag[c] === 0) rhs[c] = 0;
@@ -671,7 +680,12 @@ export class Solver3D {
       }
     }
 
+    // Warm start com a pressão do passo anterior (ver pressure2d.ts)
+    for (let c = 0; c < this.p.length; c++) {
+      this.p[c] = (this.cellType[c] === FLUID && Adiag[c] > 0) ? this.pPrev[c] : 0;
+    }
     this.pcg();
+    this.pPrev.set(this.p);
     this.applyGradient(dt);
   }
 
@@ -731,10 +745,18 @@ export class Solver3D {
   private pcg(): void {
     const r = this.rr, z = this.zz, s = this.ss;
     const p = this.p;
-    r.set(this.rhs);
+    // r = b − A·x₀ (warm start)
+    this.applyA(z, p);
     let r0 = 0;
-    for (let c = 0; c < r.length; c++) r0 = Math.max(r0, Math.abs(r[c]));
-    if (r0 < 1e-14) { this.lastPressureIters = 0; return; }
+    let rInit = 0;
+    for (let c = 0; c < r.length; c++) {
+      r[c] = this.rhs[c] - z[c];
+      const a = Math.abs(this.rhs[c]);
+      if (a > r0) r0 = a;
+      const b = Math.abs(r[c]);
+      if (b > rInit) rInit = b;
+    }
+    if (r0 < 1e-14 || rInit < 1e-14) { this.lastPressureIters = 0; return; }
     this.buildPrecon();
     this.applyPrecon(z, r);
     s.set(z);
@@ -1156,17 +1178,21 @@ export class Solver3D {
         else { dead = true; this.drained++; }
       }
       if (!dead) {
-        if (y < 0) y = eps;
-        else if (y > H) {
+        if (y < 0) {
+          // honra o tipo da borda (antes o fundo era sempre parede —
+          // achado da revisão; latente: nossas cenas usam yLo = wall)
+          if (bc.yLo.kind === 'wall' || bc.yLo.kind === 'inflow') y = eps;
+          else { dead = true; this.drained++; }
+        } else if (y > H) {
           if (bc.yHi.kind === 'open') { dead = true; this.lostTop++; }
           else y = H - eps;
         }
         if (!dead) {
           if (z < 0) {
-            if (bc.zLo.kind === 'wall') z = eps;
+            if (bc.zLo.kind === 'wall' || bc.zLo.kind === 'inflow') z = eps;
             else { dead = true; this.drained++; }
           } else if (z > Dp) {
-            if (bc.zHi.kind === 'wall') z = Dp - eps;
+            if (bc.zHi.kind === 'wall' || bc.zHi.kind === 'inflow') z = Dp - eps;
             else { dead = true; this.drained++; }
           }
         }
@@ -1178,20 +1204,29 @@ export class Solver3D {
 
   private reseedHead: Int32Array | null = null;
   private reseedNext: Int32Array | null = null;
+  private reseedCount: Int32Array | null = null;
 
+  /**
+   * Reamostragem 3D — mesmas lições da revisão adversarial do 2D:
+   * binning e CONTAGENS frescos (pós-advecção; as contagens do início do
+   * passo estavam obsoletas) e critério de profundidade por ocupação (o
+   * gate por level set era inatingível — código morto).
+   */
   private reseed(): void {
     const target = this.params.particlesPerCell;
     const minCount = Math.max(3, Math.floor(target / 2));
     const maxCount = target * 3;
     const dx = this.dx;
-    // remoção: binning por lista encadeada (buffers persistentes)
     if (!this.reseedHead) this.reseedHead = new Int32Array(this.cellType.length);
+    if (!this.reseedCount) this.reseedCount = new Int32Array(this.cellType.length);
     if (!this.reseedNext || this.reseedNext.length < this.capacity) {
       this.reseedNext = new Int32Array(this.capacity);
     }
     const head = this.reseedHead;
     const next = this.reseedNext;
+    const count = this.reseedCount;
     head.fill(-1);
+    count.fill(0);
     const inv = 1 / dx;
     for (let pp = 0; pp < this.count; pp++) {
       const i = Math.min(Math.max(Math.floor(this.px[pp] * inv), 0), this.nx - 1);
@@ -1200,15 +1235,36 @@ export class Solver3D {
       const c = this.ic(i, j, k);
       next[pp] = head[c];
       head[c] = pp;
+      count[c]++;
     }
+    const { nx, ny, nz } = this;
+    const nxy = nx * ny;
+    // Política idêntica à do 2D (ver solver2d.reseedParticles): preencher
+    // apenas VAZIOS interiores reais; aparar apenas aglomerações extremas.
+    const deep = (i: number, j: number, k: number, c: number): boolean => {
+      if (i < 2 || i >= nx - 2 || j < 2 || j >= ny - 2 || k < 2 || k >= nz - 2) return false;
+      if (this.solidPhiC[c] <= 0.75 * dx) return false;
+      for (let dk = -2; dk <= 2; dk++) {
+        for (let dj = -2; dj <= 2; dj++) {
+          const base = c + dj * nx + dk * nxy;
+          for (let di = -2; di <= 2; di++) {
+            if (di === 0 && dj === 0 && dk === 0) continue;
+            if (this.cellType[base + di] === AIR) return false;
+          }
+        }
+      }
+      return true;
+    };
+    let addBudget = Math.max(32, Math.floor(0.005 * this.count));
+
     const kill: number[] = [];
-    for (let k = 0; k < this.nz; k++) {
-      for (let j = 0; j < this.ny; j++) {
-        for (let i = 0; i < this.nx; i++) {
+    for (let k = 0; k < nz; k++) {
+      for (let j = 0; j < ny; j++) {
+        for (let i = 0; i < nx; i++) {
           const c = this.ic(i, j, k);
-          if (this.cellType[c] !== FLUID) continue;
-          const n = this.cellCount[c];
-          if (n > maxCount && this.liquidPhi[c] < -dx) {
+          if (this.solidPhiC[c] < 0) continue;
+          const n = count[c];
+          if (n > maxCount && deep(i, j, k, c)) {
             let pp = head[c];
             let seen = 0;
             while (pp >= 0) {
@@ -1216,17 +1272,32 @@ export class Solver3D {
               if (seen > maxCount) kill.push(pp);
               pp = next[pp];
             }
-          } else if (
-            n < minCount && this.liquidPhi[c] < -dx && this.solidPhiC[c] > 0.75 * dx
-          ) {
-            const add = target - n;
-            for (let a = 0; a < add; a++) {
-              const x = (i + this.rng.next()) * dx;
-              const y = (j + this.rng.next()) * dx;
-              const z = (k + this.rng.next()) * dx;
-              if (this.scene.sdf(x, y, z) < 0) continue;
-              const [uu, vv, ww] = this.sampleVel(x, y, z);
-              this.addParticle(x, y, z, uu, vv, ww);
+          } else if (n === 0 && addBudget > 0 && deep(i, j, k, c)) {
+            // Realocação neutra em massa (ver solver2d.reseedParticles)
+            let best = -1;
+            let bestN = target;
+            for (const cn of [c - 1, c + 1, c - nx, c + nx, c - nxy, c + nxy]) {
+              if (count[cn] > bestN) { bestN = count[cn]; best = cn; }
+            }
+            if (best >= 0) {
+              const pp = head[best];
+              if (pp >= 0) {
+                head[best] = next[pp];
+                count[best]--;
+                count[c]++;
+                const x = (i + this.rng.next()) * dx;
+                const y = (j + this.rng.next()) * dx;
+                const z = (k + this.rng.next()) * dx;
+                if (this.scene.sdf(x, y, z) > 0) {
+                  this.px[pp] = x; this.py[pp] = y; this.pz[pp] = z;
+                  const [uu, vv, ww] = this.sampleVel(x, y, z);
+                  this.pu[pp] = uu; this.pv[pp] = vv; this.pw[pp] = ww;
+                  for (let d = 0; d < 3; d++) {
+                    this.cu[3 * pp + d] = 0; this.cv[3 * pp + d] = 0; this.cw[3 * pp + d] = 0;
+                  }
+                  addBudget--;
+                }
+              }
             }
           }
         }

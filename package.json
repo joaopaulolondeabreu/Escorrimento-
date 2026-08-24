@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "validate": "tsx src/tests/validate.ts"
+    "validate": "tsx src/tests/validate.ts",
+    "export:blender": "tsx src/tests/export3d.ts"
   },
   "dependencies": {
     "gl-matrix": "^3.4.3"

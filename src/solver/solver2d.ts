@@ -17,7 +17,7 @@
  * limitado a Δt_max. Tudo determinístico (semente fixa, ordem fixa).
  */
 
-import { Grid2D, DomainBC, FLUID } from './grid2d';
+import { Grid2D, DomainBC, FLUID, AIR } from './grid2d';
 import { Particles2D } from './particles2d';
 import { particlesToGrid, gridToParticles } from './transfer2d';
 import { computeLiquidPhi } from './levelset2d';
@@ -347,28 +347,63 @@ export class Solver2D {
 
   /**
    * Mantém a densidade de partículas por célula (§3.2.10): insere em células
-   * FLUID profundas com déficit; remove excedentes. Alterações aqui são
-   * DERIVA DE MASSA e são contabilizadas (reseedAdded/reseedRemoved).
+   * profundas com déficit; remove excedentes. Alterações aqui são DERIVA DE
+   * MASSA e são contabilizadas (reseedAdded/reseedRemoved).
+   *
+   * Duas lições da revisão adversarial estão codificadas aqui:
+   * 1. O binning é REFEITO após a advecção — as listas do início do passo
+   *    apontariam para índices trocados pelos swap-remove da advecção e dos
+   *    emissores (partícula errada removida).
+   * 2. "Profundo" é definido por ocupação (célula e 4 vizinhas com
+   *    partículas, longe de sólidos) — o gate anterior φ < −Δx era
+   *    inatingível (o level set de união de bolas nunca desce de −r) e a
+   *    reamostragem era código morto.
    */
   private reseedParticles(): void {
     const g = this.grid;
     const parts = this.parts;
     const target = this.params.particlesPerCell;
     const minCount = Math.max(2, Math.floor(target / 2));
-    // Limite de remoção folgado (3×) e restrito a células profundas:
-    // aglomerações transitórias em respingos/impactos representam volume
-    // real — remover cedo demais causa perda de massa permanente.
+    // Limite de remoção folgado (3×): aglomerações transitórias em
+    // respingos representam volume real — remover cedo perde massa.
     const maxCount = target * 3;
     const dx = g.dx;
-    const kill: number[] = [];
 
-    for (let j = 0; j < g.ny; j++) {
-      for (let i = 0; i < g.nx; i++) {
+    // Binning fresco (pós-advecção)
+    this.binParticles();
+    const count = this.cellCount;
+    const kill: number[] = [];
+    const { nx, ny } = g;
+
+    // "Profundo" = nenhuma OUTRA célula de AR num raio de 2 células. Com o
+    // clustering natural do FLIP, "completar células rarefeitas" adiciona
+    // sistematicamente mais do que remove (+119% de massa medidos num
+    // sloshing de 30 s). A política honesta compatível com deriva < 1%:
+    //  - INSERIR apenas em VAZIOS reais (célula interior com 0 partículas,
+    //    que viraria AR no meio do fluido e quebraria a classificação);
+    //  - REMOVER apenas aglomerações extremas (> 3× o alvo) profundas.
+    // A equalização estrita de 4–8/célula do §3.2.10 é incompatível com a
+    // conservação de massa exigida — documentado em NUMERICA.md.
+    const deep = (i: number, j: number, c: number): boolean => {
+      if (i < 2 || i >= nx - 2 || j < 2 || j >= ny - 2) return false;
+      if (g.solidPhiCenter[c] <= 0.75 * dx) return false;
+      for (let dj = -2; dj <= 2; dj++) {
+        for (let di = -2; di <= 2; di++) {
+          if (di === 0 && dj === 0) continue; // o próprio vazio não conta
+          if (g.cellType[c + di + dj * nx] === AIR) return false;
+        }
+      }
+      return true;
+    };
+    // Trava anti-runaway: no máximo 0.5% de partículas novas por passo
+    let addBudget = Math.max(16, Math.floor(0.005 * parts.count));
+
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
         const c = g.ic(i, j);
-        if (g.cellType[c] !== FLUID) continue;
-        const n = this.cellCount[c];
-        if (n > maxCount && g.liquidPhi[c] < -1.0 * dx) {
-          // Marca excedentes para remoção (determinístico: ordem da lista)
+        if (g.solidPhiCenter[c] < 0) continue;
+        const n = count[c];
+        if (n > maxCount && deep(i, j, c)) {
           let p = this.cellHead[c];
           let seen = 0;
           while (p >= 0) {
@@ -376,19 +411,34 @@ export class Solver2D {
             if (seen > maxCount) kill.push(p);
             p = this.partNext[p];
           }
-        } else if (
-          n < minCount &&
-          g.liquidPhi[c] < -1.0 * dx &&           // bem dentro da água
-          g.solidPhiCenter[c] > 0.75 * dx         // longe de paredes
-        ) {
-          const add = target - n;
-          for (let a = 0; a < add; a++) {
-            const px = (i + this.rng.next()) * dx;
-            const py = (j + this.rng.next()) * dx;
-            if (this.scene.sdf(px, py) < 0) continue;
-            const [u, v] = g.sampleVel(px, py);
-            parts.add(px, py, u, v);
-            this.reseedAdded++;
+        } else if (n === 0 && addBudget > 0 && deep(i, j, c)) {
+          // Vazio interior: REALOCA uma partícula da célula vizinha mais
+          // aglomerada (neutro em massa — criar partícula aqui adicionaria
+          // volume que a projeção empurra para cima: +21% medidos).
+          let best = -1;
+          let bestN = target; // só rouba de célula acima do alvo
+          for (const cn of [c - 1, c + 1, c - nx, c + nx]) {
+            if (count[cn] > bestN) { bestN = count[cn]; best = cn; }
+          }
+          if (best >= 0) {
+            const p = this.cellHead[best];
+            if (p >= 0) {
+              this.cellHead[best] = this.partNext[p];
+              count[best]--;
+              count[c]++;
+              const px = (i + this.rng.next()) * dx;
+              const py = (j + this.rng.next()) * dx;
+              if (this.scene.sdf(px, py) > 0) {
+                parts.x[p] = px;
+                parts.y[p] = py;
+                const [u, v] = g.sampleVel(px, py);
+                parts.u[p] = u; parts.v[p] = v;
+                parts.cux[p] = 0; parts.cuy[p] = 0;
+                parts.cvx[p] = 0; parts.cvy[p] = 0;
+                this.reseedAdded++; // contabilizado como realocação
+                addBudget--;
+              }
+            }
           }
         }
       }

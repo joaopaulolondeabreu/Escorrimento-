@@ -87,6 +87,12 @@ Bridson, τ = 0.97, σ = 0.25), tolerância relativa 10⁻⁶ ou 200 iterações
 (A especificação pede MGPCG *ou* MIC(0)-PCG; escolhemos MIC(0) — nos
 domínios usados converge em 20–40 iterações.)
 
+**Warm start**: a pressão do passo anterior é o chute inicial
+(r₀ = b − A·x₀), com a tolerância ancorada na norma do RHS para manter o
+mesmo critério de parada do arranque a frio. Medido: no repouso
+hidrostático o PCG cai de 34 iterações para **1**; na cena-alvo, para um
+dígito na maior parte dos passos. Determinístico.
+
 Superfície livre por **ghost-fluid**: `p = 0` (relativo a P₀) aplicado na
 posição da interface via `θ = φ_F/(φ_F − φ_A)` (clamp em 0.02), não na
 célula inteira — essencial para a altura de subida no tubo e o perfil
@@ -142,11 +148,29 @@ superfície importa) e para a reamostragem.
   `x⁺ = x + Δt·(2k₁ + 3k₂ + 4k₃)/9`. Interpolação bilinear/trilinear
   (dentro de cada célula MAC ela é exatamente livre de divergência).
 - Penetração em sólido → projeção para fora pela normal do SDF.
-- **Reamostragem conservadora**: inserir só em células FLUID profundas
-  (φ < −Δx, longe de paredes) com < metade do alvo; remover só acima de
-  3× o alvo e também só em células profundas — remoção agressiva em
-  respingos custava 7% de massa em 30 s (*modo de falha real*); com a
-  política atual a deriva fica < 1%.
+- **Reamostragem por realocação (neutra em massa)** — a história completa,
+  porque cada etapa foi um modo de falha REAL medido:
+  1. gate por level set (φ < −Δx) era **inatingível** (o φ de união de
+     bolas nunca desce de −r ≈ −0.45Δx) → reamostragem era código morto
+     (achado da revisão adversarial);
+  2. "completar células rarefeitas até o alvo" → **+119–141% de massa** em
+     30 s de sloshing: com o clustering natural do FLIP a inserção supera
+     sistematicamente a remoção, e cada partícula criada é volume que a
+     projeção (incompressível!) empurra para cima — realimentação;
+  3. inserir apenas em vazios interiores reais → ainda **+21%**: célula
+     vazia transitória não é massa faltando — o volume está nas vizinhas
+     aglomeradas;
+  4. política final: vazio interior profundo (nenhuma célula de AR num
+     raio de 2) é preenchido **realocando** uma partícula da vizinha mais
+     aglomerada (contagem inalterada); só aglomerações extremas (> 3× o
+     alvo) profundas são removidas. Deriva medida: **0.03%** em 30 s, com
+     ~560 realocações fazendo trabalho útil.
+  A equalização estrita de 4–8 partículas/célula pedida em §3.2.10 é
+  incompatível com deriva de massa < 1% neste esquema — esta é a leitura
+  honesta das duas exigências simultâneas.
+- Binning e listas SEMPRE refeitos dentro da reamostragem (pós-advecção):
+  as listas do início do passo apontariam para índices trocados pelos
+  swap-remove da advecção (partícula errada removida — achado da revisão).
 - **Emissor de entrada**: banda de 2 células na borda direita mantida na
   densidade-alvo com velocidade prescrita (−V, 0) — a banda é condição de
   contorno, não fluido livre. Saída: partículas que cruzam a borda são
@@ -191,3 +215,21 @@ cáusticas de Worley) → bloom → ACES/aberração/vinheta/grão. É o pipelin
 de "screen-space fluid" adaptado ao corte 2D; os passes 3D plenos da
 especificação (profundidade esférica por partícula, sombras em cascata,
 HDRI real) exigiriam a cena 3D interativa (ver §8 acima).
+
+## 11. Pipeline Blender (renderização fotorrealista externa)
+
+Para "água idêntica à vida real", o corte 2D interativo tem teto físico
+(fenômeno 3D). O caminho entregue e TESTADO de ponta a ponta:
+
+1. `npx tsx src/tests/export3d.ts --V=8 --t=4 --fps=24` roda a simulação
+   3D deste repositório e grava `exports/quadro_####.ply` (nuvens de
+   pontos binárias com |u| por partícula) + `exports/cena.json`;
+2. `blender -b -P blender/importar_escorrimento.py -- exports 1 96`
+   reconstrói a superfície por Points→Volume→Mesh (Geometry Nodes),
+   aplica água física (Principled BSDF com transmissão, IOR 1.333,
+   absorção volumétrica), monta tubo/canal/reservatório a partir do
+   cena.json, ilumina com céu Nishita + sol e renderiza em Cycles.
+
+A física é 100% do nosso solver; o Blender é só renderizador. Compatível
+com Blender 3.6+/4.x (importador PLY e sockets de GN com fallback; builds
+sem OpenImageDenoise caem para render sem denoise automaticamente).

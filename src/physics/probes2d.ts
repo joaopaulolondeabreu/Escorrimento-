@@ -144,8 +144,10 @@ export function traceCaptureFraction(
       x += dtT * u2;
       y += dtT * v2;
       if (recordPaths && n % 4 === 0) { rec.push(x, y); }
-      // capturado: entrou no tubo (dentro do canal interno, subindo)
-      if (x < geo.xC && Math.abs(x - geo.xTube) < p.D / 2 + p.elbowR && y > geo.mouthY1 + p.elbowR) {
+      // capturado: DENTRO do trecho vertical interno do tubo (o critério
+      // largo anterior contava água de galgamento por cima do duto como
+      // capturada — achado da revisão adversarial)
+      if (Math.abs(x - geo.xTube) < p.D / 2 && y > geo.mouthY1 + p.elbowR) {
         captured = true;
         break;
       }

@@ -313,9 +313,11 @@ export function measureIntake3d(s: Solver3D, p: Intake3DParams): Intake3DMeasure
         const [u1, v1, w1] = s.sampleVel(x, y, z);
         const [u2, v2, w2] = s.sampleVel(x + 0.5 * dtT * u1, y + 0.5 * dtT * v1, z + 0.5 * dtT * w1);
         x += dtT * u2; y += dtT * v2; z += dtT * w2;
-        // capturado: DENTRO do trecho vertical interno, acima do cotovelo
+        // capturado: DENTRO do trecho vertical interno, acima do cotovelo.
+        // Raio completo D/2: exigir o núcleo 0.9·D/2 descartava ~19% do
+        // tubo de corrente (as linhas rentes à parede) — achado da revisão.
         if (y > geo.yC + p.D / 2 + p.elbowR &&
-            Math.hypot(x - geo.xTube, z - geo.zC) < 0.9 * p.D / 2) {
+            Math.hypot(x - geo.xTube, z - geo.zC) < p.D / 2) {
           isCap = true;
           break;
         }

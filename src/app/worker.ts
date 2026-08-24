@@ -234,6 +234,9 @@ self.onmessage = (ev: MessageEvent<MainToWorker>) => {
       break;
     }
     case 'setParams': {
+      // Durante a varredura o V pertence ao sweep: mudanças de parâmetros
+      // corromperiam os pontos medidos (achado da revisão adversarial).
+      if (sweepState) break;
       if (msg.intake) Object.assign(intake, msg.intake);
       if (!solver) break;
       if (msg.solver) Object.assign(solver.params, msg.solver);
@@ -252,13 +255,19 @@ self.onmessage = (ev: MessageEvent<MainToWorker>) => {
       if (solver && !running) solver.step(solver.computeDt());
       break;
     case 'reset':
+      if (sweepState) {
+        // reset cancela a varredura (senão phaseStart guardaria o relógio
+        // do solver antigo e o sweep congelaria — achado da revisão)
+        intake.V = sweepState.savedV;
+        sweepState = null;
+      }
       if (solver) rebuild(solver.grid.nx, { ...solver.params });
       break;
     case 'speed':
       timeScale = msg.timeScale;
       break;
     case 'sweep': {
-      if (!solver) break;
+      if (!solver || sweepState) break; // já varrendo: ignora segundo start
       sweepState = {
         vValues: msg.vValues, idx: 0, phase: 'settle',
         phaseStart: solver.time, settleTime: msg.settleTime,

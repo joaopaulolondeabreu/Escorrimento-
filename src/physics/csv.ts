@@ -7,17 +7,20 @@ import {
 
 export function sweepToCsv(
   points: SweepPoint[], H: number, D: number, rho: number,
+  /** Submersão da sonda de P_C abaixo da superfície [m]: a teoria é
+   *  avaliada NA SONDA, P = P₀ + ρg(H + dC) — ver hud.ts. */
+  dC = 0,
 ): string {
   const lines = [
     // Cabeçalho: grandezas por metro de largura (2D)
     'V[m/s],v_medido[m/s],v_teorico[m/s],phi_medido[m2/s],phi_teorico[m2/s],' +
-    'Pc_medido[Pa],Pc_teorico[Pa],AcA_medido,AcA_teorico,F_medido[N/m],' +
+    'Pc_medido[Pa],Pc_teorico_na_sonda[Pa],AcA_medido,AcA_teorico,F_medido[N/m],' +
     'F_teorico[N/m],Pi_medido[W/m],Pi_teorico[W/m]',
   ];
   for (const p of points) {
     const vT = tubeVelocity(p.V, H);
     const phiT = D * vT;
-    const pcT = rho * G_STANDARD * H;
+    const pcT = rho * G_STANDARD * (H + dC);
     const acT = captureFraction(p.V, H);
     const fT = rho * phiT * p.V;
     lines.push([

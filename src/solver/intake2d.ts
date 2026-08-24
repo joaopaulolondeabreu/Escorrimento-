@@ -140,14 +140,18 @@ export function buildIntakeSdf(p: IntakeParams, dx: number): Sdf2 {
   };
 
   // Reservatório: piso com furo para o tubo + duas paredes laterais.
+  // A sobreposição piso↔parede do tubo é limitada à espessura efetiva —
+  // com folga fixa, em grade fina o piso invadia o interior do duto
+  // (achado da revisão adversarial).
   const wallW = 0.04;
+  const lap = Math.min(wallW, g.tEff) / 2;
   const floorL = sdfBox(
     (g.resX0 + (g.xTube - rOut)) / 2, g.resFloorY,
-    (g.xTube - rOut - g.resX0) / 2 + wallW / 2, 0.02,
+    (g.xTube - rOut - g.resX0) / 2 + lap, 0.02,
   );
   const floorR = sdfBox(
     (g.resX1 + (g.xTube + rOut)) / 2, g.resFloorY,
-    (g.resX1 - (g.xTube + rOut)) / 2 + wallW / 2, 0.02,
+    (g.resX1 - (g.xTube + rOut)) / 2 + lap, 0.02,
   );
   const wallL = sdfBox(
     g.resX0 - wallW / 2, g.resFloorY + p.resHWall / 2,

@@ -102,15 +102,35 @@ teoria, o painel mostra o desvio e explica. Limitações declaradas:
 - Sem bibliotecas de física: todo o solver está em `src/solver/`, escrito
   do zero, comentado em português com as equações discretizadas.
 
+## Renderização fotorrealista (Blender)
+
+Para água indistinguível da real, o projeto exporta a simulação 3D e
+renderiza no Blender/Cycles (gratuito) — **a física é 100% deste solver;
+o Blender entra só como renderizador**. Pipeline testado de ponta a ponta:
+
+```bash
+# 1) roda a simulação 3D e exporta as partículas (PLY por quadro):
+npm run export:blender          # padrões: V=8, 4 s, 24 fps → exports/
+
+# 2) renderiza (Blender 3.6+ instalado localmente):
+blender -b -P blender/importar_escorrimento.py -- exports 1 96 --samples=256
+# → exports/render/quadro_####.png (junte em vídeo com ffmpeg)
+```
+
+Exemplo real produzido por esse pipeline (48 amostras, sem denoise):
+
+![Render Blender/Cycles da captação](docs/exemplo-render-blender.png)
+
 ## Para desenvolvedores
 
 ```bash
-npm install       # dependências
-npm run dev       # servidor de desenvolvimento (http://localhost:5173)
-npm test          # testes canônicos do solver (§7.1) — ~4 min
-npm run validate  # validação completa + relatório docs/VALIDACAO.md
-                  # (inclui os pontos 3D; use --skip3d para pular)
-npm run build     # build de produção em dist/
+npm install         # dependências
+npm run dev         # servidor de desenvolvimento (http://localhost:5173)
+npm test            # testes canônicos do solver (§7.1) — ~4 min
+npm run validate    # validação completa + relatório docs/VALIDACAO.md
+                    # (inclui os pontos 3D; use --skip3d para pular)
+npm run export:blender  # exporta partículas 3D para o Blender
+npm run build       # build de produção em dist/
 ```
 
 Documentação: `docs/FISICA.md` (derivação completa das fórmulas),

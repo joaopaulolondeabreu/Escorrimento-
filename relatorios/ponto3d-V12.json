@@ -1,0 +1,18 @@
+{
+  "V": 12,
+  "nx": 92,
+  "dx": 0.041304347826086954,
+  "settle": 3,
+  "measure": 2,
+  "vNozzle": 7.8453987052421095,
+  "flux": 0.9904630482601027,
+  "overpressureC": 47092.714761959774,
+  "dragForce": -12044.646993200493,
+  "captureFraction": 0.5333615758103745,
+  "tubeFilled": 0.7782416666666667,
+  "minPressureAbs": 38623.14573743783,
+  "maxDivergence": 6.178679935552127e-7,
+  "particles": 379507,
+  "steps": 2022,
+  "wallSeconds": 2231.122
+}

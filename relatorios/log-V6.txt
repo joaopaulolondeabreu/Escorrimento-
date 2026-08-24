@@ -1,1 +1,5 @@
 [V=6] grade 92x70x29 dx=4.13cm particulas=280456
+[V=6] t=0.85s n=392463 pIt=30
+[V=6] t=1.80s n=453172 pIt=33
+[V=6] t=2.52s n=495418 pIt=33
+[V=6] concluído em 1499s → relatorios/ponto3d-V6.json
