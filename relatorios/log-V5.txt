@@ -3,3 +3,4 @@
 [V=5] t=1.51s n=193856 pIt=27
 [V=5] t=1.90s n=202049 pIt=20
 [V=5] t=2.42s n=208338 pIt=26
+[V=5] concluído em 804s → relatorios/ponto3d-V5.json

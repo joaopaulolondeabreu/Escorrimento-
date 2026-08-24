@@ -339,7 +339,8 @@ function drawOverlay(frame: FrameMsg): void {
   }
 
   // Perfil de pressão no tubo vs reta teórica P(z) = P₀ + ρg(H − z)
-  if (sci && frame.tubeProfile && frame.tubeProfile.length >= 4) {
+  // (oculto enquanto o painel da varredura ocupa a lateral direita)
+  if (sci && frame.tubeProfile && frame.tubeProfile.length >= 4 && !showSweepPanel) {
     const med: Array<[number, number]> = [];
     for (let i = 0; i < frame.tubeProfile.length; i += 2) {
       med.push([frame.tubeProfile[i + 1] / 1000, frame.tubeProfile[i]]);
