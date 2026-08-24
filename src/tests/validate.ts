@@ -18,8 +18,8 @@ import {
   poiseuilleTest, taylorGreenTest, damBreakTest, determinismTest,
   TestResult,
 } from './canonical';
-import { makeIntakeSolver, defaultIntakeParams } from '../solver/intake2d';
-import { defaultIntake3DParams } from '../solver/intake3d';
+import { makeIntakeSolver, defaultIntakeParams, intakeGeometry } from '../solver/intake2d';
+import { defaultIntake3DParams, intake3dGeometry } from '../solver/intake3d';
 import { measureIntake } from '../physics/probes2d';
 import {
   tubeVelocity, captureFraction, vMin, G_STANDARD, RHO_WATER,
@@ -117,7 +117,11 @@ async function main(): Promise<void> {
     }
     const vT = tubeVelocity(p.V, p.H);
     const phiT = p.D * vT;
-    const pcT = RHO_WATER * G_STANDARD * p.H;
+    // Teoria de P_C avaliada NA POSIÇÃO DA SONDA: ρg(H + d_C), com d_C a
+    // submersão da sonda (ver hud.ts) — ρgH puro é o limite de boca rasa.
+    const geo2 = intakeGeometry(p, s.grid.dx);
+    const dC2 = Math.max(0, p.waterDepth - geo2.yC);
+    const pcT = RHO_WATER * G_STANDARD * (p.H + dC2);
     const acT = captureFraction(p.V, p.H);
     const fT = RHO_WATER * phiT * p.V;
     const g = (x: number) => x / Math.max(1, n);
@@ -125,7 +129,7 @@ async function main(): Promise<void> {
     lines.push('|---|---|---|---|');
     lines.push(`| v no bocal [m/s] | ${fmt(g(acc.v), 2)} | ${fmt(vT, 2)} | ${pct(g(acc.v), vT)} |`);
     lines.push(`| φ [m²/s] | ${fmt(g(acc.phi))} | ${fmt(phiT)} | ${pct(g(acc.phi), phiT)} |`);
-    lines.push(`| P_C − P₀ [kPa] | ${fmt(g(acc.pc) / 1000, 2)} | ${fmt(pcT / 1000, 2)} | ${pct(g(acc.pc), pcT)} |`);
+    lines.push(`| P_C − P₀ na sonda [kPa] (teoria ρg(H+d_C), d_C=${fmt(dC2, 3)} m) | ${fmt(g(acc.pc) / 1000, 2)} | ${fmt(pcT / 1000, 2)} | ${pct(g(acc.pc), pcT)} |`);
     lines.push(`| A_c/A | ${fmt(g(acc.ac), 2)} | ${fmt(acT, 2)} | ${pct(g(acc.ac), acT)} |`);
     lines.push(`| F [kN/m] | ${fmt(g(acc.f) / 1000, 2)} | ${fmt(fT / 1000, 2)} | ${pct(g(acc.f), fT)} |`);
     lines.push('');
@@ -159,7 +163,10 @@ async function main(): Promise<void> {
 
     const p3 = defaultIntake3DParams();
     const A = Math.PI * p3.D * p3.D / 4;
-    const pcT = RHO_WATER * G_STANDARD * p3.H;
+    // Teoria de P_C na posição da sonda: ρg(H + d_C) — ver hud.ts/§FISICA
+    const geo3 = intake3dGeometry(p3, points[0] ? points[0].dx : 0.041);
+    const dC3 = Math.max(0, p3.waterDepth - geo3.yC);
+    const pcT = RHO_WATER * G_STANDARD * (p3.H + dC3);
 
     lines.push('## §7.2 Problema-alvo em 3D (geometria cilíndrica, free-slip, ν nominal)');
     lines.push('');
