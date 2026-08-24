@@ -366,7 +366,7 @@ export class Solver2D {
     const minCount = Math.max(2, Math.floor(target / 2));
     // Limite de remoção folgado (3×): aglomerações transitórias em
     // respingos representam volume real — remover cedo perde massa.
-    const maxCount = target * 3;
+    const maxCount = target * 12; // poda APENAS como salvaguarda de memória: qualquer limiar regulador (3x, 6x) removia 20-27% de massa real nas zonas de estagnação onde o FLIP empacota; o P2G normaliza por massa, então a densidade de particulas nao distorce a fisica
     const dx = g.dx;
 
     // Binning fresco (pós-advecção)

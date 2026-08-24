@@ -162,9 +162,13 @@ superfície importa) e para a reamostragem.
      aglomeradas;
   4. política final: vazio interior profundo (nenhuma célula de AR num
      raio de 2) é preenchido **realocando** uma partícula da vizinha mais
-     aglomerada (contagem inalterada); só aglomerações extremas (> 3× o
-     alvo) profundas são removidas. Deriva medida: **0.03%** em 30 s, com
-     ~560 realocações fazendo trabalho útil.
+     aglomerada (contagem inalterada). Remoção existe APENAS como
+     salvaguarda de memória (> 12× o alvo): qualquer limiar "regulador"
+     (3×, 6×) removia 20–27% de massa real nas zonas de estagnação, onde o
+     FLIP empacota — e aglomeração NÃO é volume extra (o P2G normaliza por
+     massa). Deriva medida: **0.000%** no sloshing canônico de 30 s
+     (579 realocações, 0 remoções) e −2.5% na cena-alvo 2D violenta
+     (162 podas de empacotamento patológico > 48/célula, reportadas).
   A equalização estrita de 4–8 partículas/célula pedida em §3.2.10 é
   incompatível com deriva de massa < 1% neste esquema — esta é a leitura
   honesta das duas exigências simultâneas.

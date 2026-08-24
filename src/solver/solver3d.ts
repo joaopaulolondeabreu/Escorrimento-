@@ -1215,7 +1215,7 @@ export class Solver3D {
   private reseed(): void {
     const target = this.params.particlesPerCell;
     const minCount = Math.max(3, Math.floor(target / 2));
-    const maxCount = target * 3;
+    const maxCount = target * 12; // poda APENAS como salvaguarda de memória: qualquer limiar regulador (3x, 6x) removia 20-27% de massa real nas zonas de estagnação onde o FLIP empacota; o P2G normaliza por massa, então a densidade de particulas nao distorce a fisica
     const dx = this.dx;
     if (!this.reseedHead) this.reseedHead = new Int32Array(this.cellType.length);
     if (!this.reseedCount) this.reseedCount = new Int32Array(this.cellType.length);

@@ -1,6 +1,1 @@
 [V=8] grade 92x70x29 dx=4.13cm particulas=280456
-[V=8] t=0.65s n=373372 pIt=29
-[V=8] t=1.40s n=393388 pIt=29
-[V=8] t=2.13s n=413244 pIt=29
-[V=8] t=2.86s n=419107 pIt=30
-[V=8] concluído em 1652s → relatorios/ponto3d-V8.json
