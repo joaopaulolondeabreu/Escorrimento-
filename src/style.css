@@ -126,6 +126,14 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   box-shadow: 0 4px 24px rgba(0,0,0,0.5);
 }
 .aviso-caixa.aviso-info { background: rgba(40, 70, 110, 0.92); }
+.aviso-fechar {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  opacity: 0.75;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
 
 /* ---------------- HUD direito ---------------- */
 #hud-wrap {
@@ -183,7 +191,72 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
   color: #aebdd0;
 }
 
+/* ---------------- barra de abas (só aparece no celular) ---------------- */
+#abas-celular {
+  display: none;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--panel2);
+  border-top: 1px solid #262c38;
+  border-bottom: 1px solid #262c38;
+}
+#abas-celular button { flex: 1; padding: 11px 8px; font-size: 13.5px; }
+
 @media (max-width: 1100px) {
   #layout { grid-template-columns: 260px 1fr; }
   #hud-wrap { display: none; }
+}
+
+/* ---------------- celular e telas estreitas (§10) ----------------
+   O layout de três colunas não cabe num telefone: vira uma coluna com a
+   simulação em cima e, embaixo, abas para "Controles" e "Medições".
+   A área da simulação recebe touch-action: none para que arrastar e a
+   pinça controlem a câmera em vez de rolar/ampliar a página. */
+@media (max-width: 780px), (pointer: coarse) and (max-width: 1024px) {
+  #layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 46vh) auto minmax(0, 1fr);
+    height: 100vh;
+    height: 100dvh;            /* desconta a barra do navegador móvel */
+  }
+  #tela-wrap { grid-row: 1; grid-column: 1; }
+  #abas-celular { grid-row: 2; grid-column: 1; display: flex; }
+  #painel-wrap, #hud-wrap {
+    grid-row: 3;
+    grid-column: 1;
+    display: block;            /* anula o display:none da regra de 1100px */
+    border: none;
+    padding: 12px 12px 28px;
+    -webkit-overflow-scrolling: touch;
+  }
+  #layout[data-aba="medicoes"] #painel-wrap { display: none; }
+  #layout[data-aba="controles"] #hud-wrap { display: none; }
+
+  #painel-wrap header h1 { font-size: 17px; }
+  .subtitulo, .atalhos-teclado { display: none; }
+
+  /* alvos de toque confortáveis */
+  button { padding: 9px 12px; font-size: 13.5px; }
+  .controle input[type="range"] { height: 32px; }
+  .controle select { padding: 8px; font-size: 14px; }
+  .controle label { font-size: 13px; }
+  #avisos { left: 8px; right: 8px; transform: none; max-width: none; }
+}
+
+/* Celular deitado: a tela é baixa demais para empilhar — painel vai ao lado. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 560px) {
+  #layout {
+    grid-template-columns: 1fr minmax(230px, 40vw);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  #tela-wrap { grid-column: 1; grid-row: 1 / span 2; }
+  #abas-celular { grid-column: 2; grid-row: 1; }
+  #painel-wrap, #hud-wrap { grid-column: 2; grid-row: 2; }
+}
+
+/* A câmera é controlada por arrastar/pinça: o navegador não deve interceptar. */
+#tela, #overlay {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }

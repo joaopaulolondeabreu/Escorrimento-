@@ -144,6 +144,8 @@ export class Renderer {
   private bgDirty = true;
   private lastCamKey = '';
   readonly hasFloat: boolean;
+  /** Framebuffer RGBA16F recusado pela GPU (visto em aparelhos antigos). */
+  private fboIncompleto = false;
 
   static create(canvas: HTMLCanvasElement): Renderer | null {
     const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
@@ -154,7 +156,14 @@ export class Renderer {
   private constructor(canvas: HTMLCanvasElement, gl: WebGL2RenderingContext) {
     this.canvas = canvas;
     this.gl = gl;
-    this.hasFloat = !!gl.getExtension('EXT_color_buffer_float');
+    // RGBA16F só é renderizável (anexável a um framebuffer) se o navegador
+    // expuser uma destas extensões. Em GPUs móveis — iOS/Safari e boa parte do
+    // Android — existe apenas a variante half-float, que é EXATAMENTE o formato
+    // usado aqui (RGBA16F + HALF_FLOAT); exigir 'EXT_color_buffer_float' fazia
+    // o celular cair no modo simplificado sem necessidade.
+    const extFloat = gl.getExtension('EXT_color_buffer_float');
+    const extHalfFloat = gl.getExtension('EXT_color_buffer_half_float');
+    this.hasFloat = !!(extFloat || extHalfFloat);
     gl.getExtension('OES_texture_float_linear');
     this.splatProg = createProgram(gl, SPLAT_VS, SPLAT_FS);
     this.bilateralProg = createProgram(gl, FULLSCREEN_VS, BILATERAL_FS);
@@ -219,6 +228,20 @@ export class Renderer {
     this.bright = mk(hw, hh);
     this.bloomA = mk(hw, hh);
     this.bloomB = mk(hw, hh);
+    // Algumas GPUs móveis aceitam criar a textura RGBA16F mas não a aceitam
+    // como anexo de cor. Sem esta checagem o resultado seria uma tela preta;
+    // detectado aqui, o desenho cai no modo científico (que usa RGBA8).
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.moments.fb);
+    const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    this.fboIncompleto = status !== gl.FRAMEBUFFER_COMPLETE;
+  }
+
+  /** O modo cinematográfico (água em espaço de tela) é possível nesta GPU? */
+  aguaDisponivel(): boolean {
+    if (!this.hasFloat) return false;
+    this.ensureFbos();
+    return !this.fboIncompleto;
   }
 
   private updateBackground(cam: Camera2D, geo: GeometryInfo, scenery: boolean): void {
@@ -268,7 +291,7 @@ export class Renderer {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.speedBuf);
     gl.bufferData(gl.ARRAY_BUFFER, frame.speeds, gl.DYNAMIC_DRAW);
 
-    if (opts.mode === 'cinematic' && this.hasFloat) {
+    if (opts.mode === 'cinematic' && this.aguaDisponivel()) {
       this.renderWater(frame, geo, cam, opts);
       return;
     }

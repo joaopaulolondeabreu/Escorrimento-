@@ -237,3 +237,75 @@ Para "água idêntica à vida real", o corte 2D interativo tem teto físico
 A física é 100% do nosso solver; o Blender é só renderizador. Compatível
 com Blender 3.6+/4.x (importador PLY e sockets de GN com fallback; builds
 sem OpenImageDenoise caem para render sem denoise automaticamente).
+
+## 12. Execução no celular (interface, entrada e compatibilidade)
+
+O simulador roda no navegador do telefone — o solver é o mesmo, dentro de
+um Web Worker, executado pelo processador do aparelho. Três ajustes foram
+necessários e um deles era um bug real de compatibilidade:
+
+**Textura de ponto flutuante (bug).** O pipeline de água usa alvos RGBA16F
+com `HALF_FLOAT`. A checagem original aceitava apenas
+`EXT_color_buffer_float`; em GPUs móveis (iOS/Safari e boa parte do
+Android) o navegador expõe somente `EXT_color_buffer_half_float`, que é
+exatamente a extensão que torna RGBA16F renderizável. O celular caía no
+modo simplificado sem motivo. Agora qualquer uma das duas serve, e a
+completude do framebuffer é verificada com `checkFramebufferStatus` — se a
+GPU recusar o anexo, o desenho cai no modo científico (RGBA8) em vez de
+mostrar tela preta.
+
+**Entrada.** Os manipuladores de mouse foram trocados por Pointer Events,
+que cobrem mouse, caneta e dedo no mesmo caminho: um ponteiro arrasta a
+câmera; dois ponteiros dão zoom de pinça em torno do ponto médio, com o
+ponto do MUNDO sob os dedos preservado — de `sx = W/2 + (x−cx)·s` sai
+`cx' = x − (px − W/2)/s'`. A roda do mouse passou a usar a mesma função,
+ou seja, agora amplia em torno do cursor (antes ampliava no centro). A
+área da simulação recebe `touch-action: none` para o navegador não rolar a
+página durante o arrasto.
+
+**Resolução inicial.** Medido nesta máquina, o custo por passo em 2D é
+9,4 ms (nx=96), 16,9 ms (128), 27,8 ms (160) e 38,5 ms (192). No celular a
+interface começa com nx=128, e o aviso na tela e o README dizem
+explicitamente o efeito físico: menos células no duto ⇒ maior perda de
+carga numérica ⇒ v e φ ainda mais abaixo da teoria (§12.1 da
+especificação: declarar, nunca esconder). O HUD mostra o desvio e o K de
+perda medido, e a resolução continua ajustável no painel.
+
+O layout vira uma coluna (simulação em cima, abas *Controles* e
+*Medições* embaixo) e, em paisagem, painel ao lado. Verificado em
+Chromium com viewport de 390×844 e toque real (eventos CDP): arrasto e
+pinça alteram a câmera, a página não rola, sem erros de console.
+
+### QR Code do modo celular
+
+`npm run celular` sobe o Vite na rede local e imprime o endereço mais um QR
+Code. O codificador (`scripts/qr.mjs`) é próprio — a regra do projeto de
+não usar biblioteca externa vale aqui também: modo byte, nível de correção
+M, versões 1 a 6, com Reed–Solomon em GF(2⁸), intercalação de blocos,
+escolha de máscara pelas penalidades N1–N4 (edição de 2015) e informação de
+formato BCH(15,5).
+
+Conferência (o primeiro corte tinha dois defeitos reais, ambos achados por
+teste e não por leitura):
+
+1. o polinômio gerador estava guardado em ordem crescente de grau, enquanto
+   a divisão sintética espera ordem decrescente — os codewords de correção
+   saíam errados. Pego pelo vetor do anexo I da norma
+   (1-M, "01234567" → `a5 24 d4 c1 ed 36 c7 87 2c 55`);
+2. a regra N3 estava na forma antiga (padrão de 11 módulos); a edição de
+   2015 usa o padrão de 7 módulos com área clara de 4 de um dos lados,
+   contando a borda do símbolo como área clara.
+
+Depois das correções: **398 de 398 matrizes idênticas, módulo a módulo**, às
+de uma implementação independente (segno 1.6.6), versões 1 a 6, ASCII e
+UTF-8, com a máscara fixada. Duas ressalvas, ambas do lado da referência:
+ela acrescenta um byte 0x00 de enchimento quando o fluxo já termina em
+fronteira de codeword (7.4.10 manda completar apenas ATÉ a fronteira), e
+avalia as máscaras com a área de formato mascarada, o que muda a máscara
+escolhida em ~7% dos casos — qualquer das 8 máscaras gera símbolo válido.
+Além da comparação, 81 dos 83 símbolos gerados foram lidos por um
+decodificador independente (OpenCV 5.0.0); os 2 restantes também não são
+lidos quando gerados pela referência (limitação do leitor, texto com
+acentuação). Nos endereços de rede — o caso de uso real, só ASCII — a
+leitura foi de 8 em 8. `src/tests/qr.test.ts` guarda matrizes douradas e um
+leitor de volta independente para impedir regressão silenciosa.

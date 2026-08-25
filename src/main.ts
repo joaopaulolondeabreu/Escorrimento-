@@ -30,6 +30,14 @@ const avisos = document.getElementById('avisos')!;
 const renderer = Renderer.create(glCanvas);
 const fallback = renderer ? null : new Fallback2D(glCanvas);
 
+/**
+ * Aparelho de tela sensível ao toque e tela estreita (celular/tablet pequeno).
+ * Usado para: layout de uma coluna com abas, alvos de toque maiores e uma
+ * resolução inicial compatível com o processador do aparelho (§10).
+ */
+const ehCelular = window.matchMedia('(pointer: coarse)').matches
+  && window.matchMedia('(max-width: 1024px)').matches;
+
 if (!renderer) {
   avisos.innerHTML = `
     <div class="aviso-caixa">
@@ -47,13 +55,30 @@ if (!renderer) {
   setTimeout(() => { avisos.innerHTML = ''; }, 9000);
 }
 
+if (ehCelular) {
+  avisos.innerHTML = `
+    <div class="aviso-caixa aviso-info">
+      <strong>Modo celular.</strong> Um dedo arrasta · dois dedos dão zoom.
+      O cálculo roda no aparelho, então a resolução começa menor (128
+      células): o desvio em relação à teoria aparece na aba
+      <em>Medições</em> e a resolução é ajustável no painel.
+      <span class="aviso-fechar">toque para fechar</span>
+    </div>` + avisos.innerHTML;
+  avisos.addEventListener('click', () => { avisos.innerHTML = ''; }, { once: true });
+  setTimeout(() => { avisos.innerHTML = ''; }, 11000);
+}
+
 // ------------------------------------------------------------------ estado
 
 const state: PanelState = {
   V: 8.0, H: 1.0, D: 0.25,
   waterDepth: 0.30, mouthDepth: 0.15,
   nuMult: 1, smagorinskyCs: 0.12, flipAlpha: 0.95,
-  nx: 192, particlesPerCell: 4,
+  // No celular a simulação começa em resolução menor: o solver roda na CPU
+  // do aparelho (§8). Medido nesta máquina: nx=192 → 26 passos/s;
+  // nx=128 → 59 passos/s. A resolução continua ajustável no painel — e o
+  // desvio em relação à teoria aparece sempre no HUD (§12.1).
+  nx: ehCelular ? 128 : 192, particlesPerCell: 4,
   noSlip: false, drain: false, tallDomain: false,
   timeScale: 1.0,
   mode: 'cinematic', field: 'speed',
@@ -72,7 +97,9 @@ let sweepProgressText = '';
 let showSweepPanel = false;
 
 const cam: Camera2D = { scale: 150, cx: 3, cy: 1.1, viewW: 800, viewH: 600 };
-let camPreset = 'corte';
+// Na tela do celular o domínio inteiro (6 m) deixaria o bocal com poucos
+// pixels: o enquadramento inicial é o do tubo, que é o que interessa ver.
+let camPreset = ehCelular ? 'tubo' : 'corte';
 
 function intakeFromState(): IntakeParams {
   const p = defaultIntakeParams();
@@ -174,6 +201,28 @@ const panel = new Panel(document.getElementById('painel')!, state, {
   onRecord: () => toggleRecording(),
 });
 
+// Estado exposto para a verificação automatizada da interface (câmera e
+// controles); não é usado pela aplicação em si.
+(window as unknown as Record<string, unknown>).__escorrimento = { cam, state };
+
+// ------------------------------------------------------------- abas (celular)
+
+/*
+ * Em telas estreitas o painel de controles e o HUD dividem a mesma faixa
+ * abaixo da simulação; estas abas escolhem qual dos dois aparece. No
+ * computador a barra fica oculta por CSS e ambos ficam visíveis.
+ */
+const layoutEl = document.getElementById('layout')!;
+layoutEl.dataset.aba = 'controles';
+const botoesAba = document.querySelectorAll<HTMLButtonElement>('#abas-celular button');
+botoesAba.forEach((b) => {
+  b.addEventListener('click', () => {
+    layoutEl.dataset.aba = b.dataset.aba ?? 'controles';
+    botoesAba.forEach((o) => o.classList.remove('ativo'));
+    b.classList.add('ativo');
+  });
+});
+
 // ------------------------------------------------------------------ câmera
 
 function applyCameraPreset(preset: string): void {
@@ -205,26 +254,99 @@ function applyCameraPreset(preset: string): void {
   renderer?.invalidateBackground();
 }
 
-let dragging = false;
-let dragStart: [number, number] | null = null;
-overlay.addEventListener('mousedown', (e) => {
-  dragging = true;
-  dragStart = [e.clientX, e.clientY];
-});
-window.addEventListener('mouseup', () => { dragging = false; });
-window.addEventListener('mousemove', (e) => {
-  if (!dragging || !dragStart) return;
+/*
+ * Câmera por Pointer Events: um único caminho para mouse, caneta e dedo.
+ *   1 ponteiro  → arrastar desloca a cena;
+ *   2 ponteiros → pinça dá zoom em torno do ponto médio (como num mapa) e o
+ *                 deslocamento do ponto médio também move a cena;
+ *   roda        → zoom em torno do cursor;
+ *   toque duplo → volta ao enquadramento "corte longitudinal".
+ * O zoom preserva o ponto do MUNDO sob o dedo/cursor: com
+ * sx = W/2 + (x−cx)·s, inverter a relação dá cx' = x − (px − W/2)/s'.
+ */
+const ponteiros = new Map<number, { x: number; y: number }>();
+let pincaDist = 0;
+let pincaMeio: [number, number] = [0, 0];
+let toqueAnterior = 0;
+
+/** Converte coordenadas de página para pixels dentro da tela da simulação. */
+function pontoNaTela(clientX: number, clientY: number): [number, number] {
+  const r = overlay.getBoundingClientRect();
+  return [clientX - r.left, clientY - r.top];
+}
+
+/** Zoom por fator `f` mantendo fixo o ponto de tela `[px, py]`. */
+function aplicarZoom(f: number, [px, py]: [number, number]): void {
+  const novo = Math.min(2000, Math.max(30, cam.scale * f));
+  if (novo === cam.scale) return;
+  const wx = cam.cx + (px - cam.viewW / 2) / cam.scale;
+  const wy = cam.cy - (py - cam.viewH / 2) / cam.scale;
+  cam.scale = novo;
+  cam.cx = wx - (px - cam.viewW / 2) / cam.scale;
+  cam.cy = wy + (py - cam.viewH / 2) / cam.scale;
   camPreset = 'livre';
-  cam.cx -= (e.clientX - dragStart[0]) / cam.scale;
-  cam.cy += (e.clientY - dragStart[1]) / cam.scale;
-  dragStart = [e.clientX, e.clientY];
+}
+
+/** Estado da pinça: distância e ponto médio entre os dois ponteiros. */
+function estadoPinca(): { meio: [number, number]; dist: number } {
+  const [a, b] = [...ponteiros.values()];
+  const meio = pontoNaTela((a.x + b.x) / 2, (a.y + b.y) / 2);
+  return { meio, dist: Math.hypot(a.x - b.x, a.y - b.y) };
+}
+
+overlay.addEventListener('pointerdown', (e) => {
+  // A captura mantém o arrasto vivo mesmo se o dedo sair da área da tela.
+  try { overlay.setPointerCapture(e.pointerId); } catch { /* ponteiro já solto */ }
+  ponteiros.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (ponteiros.size === 2) {
+    const p = estadoPinca();
+    pincaDist = p.dist;
+    pincaMeio = p.meio;
+  }
+});
+
+overlay.addEventListener('pointermove', (e) => {
+  const ant = ponteiros.get(e.pointerId);
+  if (!ant) return;
+  const dx = e.clientX - ant.x;
+  const dy = e.clientY - ant.y;
+  ponteiros.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (ponteiros.size === 1) {
+    camPreset = 'livre';
+    cam.cx -= dx / cam.scale;
+    cam.cy += dy / cam.scale;
+  } else if (ponteiros.size === 2) {
+    const { meio, dist } = estadoPinca();
+    if (pincaDist > 0 && dist > 0) aplicarZoom(dist / pincaDist, meio);
+    cam.cx -= (meio[0] - pincaMeio[0]) / cam.scale;
+    cam.cy += (meio[1] - pincaMeio[1]) / cam.scale;
+    pincaDist = dist;
+    pincaMeio = meio;
+  }
   renderer?.invalidateBackground();
 });
+
+function soltarPonteiro(e: PointerEvent): void {
+  if (!ponteiros.delete(e.pointerId)) return;
+  if (ponteiros.size < 2) pincaDist = 0;
+  if (e.pointerType === 'touch' && ponteiros.size === 0) {
+    const agora = performance.now();
+    if (agora - toqueAnterior < 320) {
+      applyCameraPreset('corte');   // toque duplo reenquadra
+      toqueAnterior = 0;
+    } else {
+      toqueAnterior = agora;
+    }
+  }
+}
+overlay.addEventListener('pointerup', soltarPonteiro);
+overlay.addEventListener('pointercancel', soltarPonteiro);
+overlay.addEventListener('dblclick', () => applyCameraPreset('corte'));
+
 overlay.addEventListener('wheel', (e) => {
   e.preventDefault();
-  camPreset = 'livre';
-  const f = Math.exp(-e.deltaY * 0.0012);
-  cam.scale = Math.min(2000, Math.max(30, cam.scale * f));
+  aplicarZoom(Math.exp(-e.deltaY * 0.0012), pontoNaTela(e.clientX, e.clientY));
   renderer?.invalidateBackground();
 }, { passive: false });
 
@@ -372,11 +494,14 @@ function drawOverlay(frame: FrameMsg): void {
   ctx.fillStyle = '#dfe6ee';
   ctx.font = '12px system-ui, sans-serif';
   ctx.textAlign = 'left';
+  // No celular a barra é estreita: texto curto e sem citar teclas de atalho.
   const modeName = sci ? 'CIENTÍFICO' : 'CINEMATOGRÁFICO';
-  ctx.fillText(
-    `t = ${frame.time.toFixed(2)} s · modo ${modeName} (tecla M) · câmera: ${camPreset} · ${sweepProgressText}`,
-    10, 17,
-  );
+  const varredura = sweepProgressText ? ` · ${sweepProgressText}` : '';
+  const linha = ehCelular
+    ? `t = ${frame.time.toFixed(2)} s · ${sci ? 'CIENTÍFICO' : 'ÁGUA'}${varredura}`
+    : `t = ${frame.time.toFixed(2)} s · modo ${modeName} (tecla M)`
+      + ` · câmera: ${camPreset}${varredura}`;
+  ctx.fillText(linha, 10, 17);
 }
 
 function drawSweepPanel(ctx: CanvasRenderingContext2D, W: number, H: number): void {

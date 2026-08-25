@@ -17,7 +17,8 @@
       </header>
       <div id="painel"></div>
       <footer class="rodape">
-        <p>Espaço: pausar · M: modo científico · &nbsp;·&nbsp; arraste/roda: câmera</p>
+        <p class="atalhos-teclado">Espaço: pausar · M: modo científico ·
+          &nbsp;·&nbsp; arraste/roda: câmera</p>
         <p>Física derivada em <code>docs/FISICA.md</code>; limitações honestas no <code>README</code>.</p>
       </footer>
     </aside>
@@ -26,6 +27,10 @@
       <canvas id="overlay"></canvas>
       <div id="avisos"></div>
     </main>
+    <nav id="abas-celular" aria-label="Seções (celular)">
+      <button type="button" data-aba="controles" class="ativo">Controles</button>
+      <button type="button" data-aba="medicoes">Medições</button>
+    </nav>
     <aside id="hud-wrap">
       <h2 title="Comparação ao vivo entre a simulação e a solução analítica (§6.2)">Medição × Teoria</h2>
       <div id="hud"></div>

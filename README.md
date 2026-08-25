@@ -26,6 +26,40 @@ Node.js não estiver instalado, ele avisa em português o que baixar.
 
 Requisito: um navegador atual (Chrome, Edge ou Firefox recentes).
 
+## Abrir no celular
+
+O simulador funciona no celular (Android e iPhone) — a simulação roda
+dentro do próprio aparelho, no navegador. Não existe site na internet: quem
+serve a página é o seu computador, pela rede Wi-Fi de casa.
+
+1. Deixe o **computador e o celular na mesma rede Wi-Fi**.
+2. No computador, dê duplo clique em:
+   - Windows: `iniciar-celular.bat` (se o Windows perguntar, **permita** o
+     acesso do Node.js à rede privada)
+   - macOS: `iniciar-celular.command`
+   - Linux: `iniciar-celular.sh`
+3. Vai aparecer um **QR Code** na janela preta. Abra a câmera do celular,
+   aponte para ele e toque no aviso que surge na tela.
+   (Se preferir, digite no navegador do celular o endereço que aparece
+   logo abaixo do QR Code, algo como `http://192.168.0.10:5173/`.)
+
+No celular a tela vira uma coluna: a simulação em cima e, embaixo, as abas
+**Controles** e **Medições**. **Um dedo arrasta** a cena, **dois dedos dão
+zoom** e **dois toques rápidos** voltam ao enquadramento inicial.
+
+Uma observação honesta: o cálculo é feito pelo processador do telefone, que
+é bem mais modesto que o de um computador. Por isso a simulação começa numa
+grade menor (128 células em vez de 192) — com menos células ao longo do
+duto, a perda de carga numérica aumenta e a velocidade medida fica ainda
+mais abaixo da teórica. Esse desvio não é escondido: ele aparece na aba
+**Medições**, junto com o coeficiente de perda K medido. Aumentando
+*Resolução* no painel a física melhora e o aparelho fica mais lento.
+
+Se o celular não abrir a página, quase sempre é uma destas causas: os dois
+aparelhos estão em redes diferentes (por exemplo, o celular no 4G), o
+firewall do computador bloqueou o Node.js, ou a rede é de um local público
+que isola os dispositivos entre si.
+
 ## O que você vai ver
 
 - **A cena**: a água chega pela direita (é o mundo passando, visto do
