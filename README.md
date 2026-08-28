@@ -151,6 +151,19 @@ npm run render:blender -- exports 1 96 --samples=256
 # → exports/render/quadro_####.png (junte em vídeo com ffmpeg)
 ```
 
+Renderizar na CPU é caro: 1920×1080 com 128 amostras dá ~6 min por quadro
+num computador comum — 96 quadros viram ~10 h. Três controles cortam isso:
+
+```bash
+npm run render:blender -- exports 1 96 --gpu --res=720p --samples=48 --passo=2
+```
+
+`--gpu` usa a placa de vídeo se houver uma compatível com o Cycles (OptiX,
+CUDA, HIP, Metal ou oneAPI) e avisa e continua na CPU se não houver;
+`--res` aceita `720p`, `1080p`, `1440p`, `4k` ou `1600x900`; `--samples`
+troca ruído por tempo (com o denoise ligado, 48 costuma bastar); `--passo=2`
+renderiza um quadro sim, outro não — junte o vídeo com metade do fps.
+
 O passo 2 procura o Blender nos lugares habituais (PATH, *Program Files*,
 Steam, `/Applications`, snap/flatpak). Se ele estiver instalado num lugar
 incomum, informe o caminho:

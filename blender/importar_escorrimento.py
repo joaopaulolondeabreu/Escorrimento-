@@ -15,6 +15,10 @@ Uso (Blender 3.6+ / 4.x, testado headless):
     # intervalo de quadros e amostras:
     blender -b -P blender/importar_escorrimento.py -- exports 1 96 --samples=256
 
+    # mais rápido: placa de vídeo, resolução menor, um quadro a cada dois:
+    blender -b -P blender/importar_escorrimento.py -- exports 1 96 \
+        --gpu --res=720p --samples=48 --passo=2
+
 Saída: exports/render/quadro_####.png
 """
 
@@ -31,11 +35,25 @@ import sys
 def parse_args():
     argv = sys.argv
     argv = argv[argv.index("--") + 1:] if "--" in argv else []
-    out = {"dir": "exports", "ini": None, "fim": None, "samples": 128}
+    out = {"dir": "exports", "ini": None, "fim": None, "samples": 128,
+           "res": (1920, 1080), "gpu": False, "passo": 1}
     pos = []
     for a in argv:
         if a.startswith("--samples="):
             out["samples"] = int(a.split("=")[1])
+        elif a.startswith("--res="):
+            valor = a.split("=")[1].lower()
+            atalhos = {"720p": (1280, 720), "1080p": (1920, 1080),
+                       "1440p": (2560, 1440), "4k": (3840, 2160)}
+            if valor in atalhos:
+                out["res"] = atalhos[valor]
+            else:
+                largura, altura = valor.split("x")
+                out["res"] = (int(largura), int(altura))
+        elif a.startswith("--passo="):
+            out["passo"] = max(1, int(a.split("=")[1]))
+        elif a in ("--gpu", "--placa"):
+            out["gpu"] = True
         else:
             pos.append(a)
     if len(pos) >= 1:
@@ -129,8 +147,49 @@ scene = bpy.context.scene
 scene.render.engine = "CYCLES"
 scene.cycles.samples = ARGS["samples"]
 scene.cycles.use_denoising = True
-scene.render.resolution_x = 1920
-scene.render.resolution_y = 1080
+
+
+def usar_gpu():
+    """Liga o Cycles na placa de vídeo, se houver uma utilizável.
+
+    Percorre os back-ends na ordem de preferência (OptiX e CUDA em NVIDIA,
+    HIP em AMD, Metal em Mac, oneAPI em Intel). Sem placa compatível, avisa
+    e continua na CPU — renderizar mais devagar é melhor do que abortar.
+    """
+    try:
+        prefs = bpy.context.preferences.addons["cycles"].preferences
+    except KeyError:
+        print("[aviso] Cycles indisponível nas preferências; seguindo na CPU")
+        return False
+    for metodo in ("refresh_devices", "get_devices"):
+        if hasattr(prefs, metodo):
+            try:
+                getattr(prefs, metodo)()
+            except Exception:
+                pass
+            break
+    for tipo in ("OPTIX", "CUDA", "HIP", "METAL", "ONEAPI"):
+        try:
+            prefs.compute_device_type = tipo
+        except (TypeError, ValueError):
+            continue
+        placas = [d for d in prefs.devices if d.type == tipo]
+        if not placas:
+            continue
+        for d in prefs.devices:
+            d.use = (d.type == tipo)
+        scene.cycles.device = "GPU"
+        print(f"Renderizando na GPU ({tipo}): "
+              + ", ".join(d.name for d in placas))
+        return True
+    print("[aviso] nenhuma placa de vídeo compatível com o Cycles foi "
+          "encontrada; renderizando na CPU")
+    return False
+
+
+if ARGS["gpu"]:
+    usar_gpu()
+scene.render.resolution_x, scene.render.resolution_y = ARGS["res"]
 # "Filmic" saiu da configuração padrão em versões novas; "AgX" o sucede.
 transform = def_enum(scene.view_settings, "view_transform", "Filmic", "AgX", "Standard")
 def_enum(scene.view_settings, "look",
@@ -387,7 +446,7 @@ def render_still():
             raise
 
 
-for n in range(ini, fim + 1):
+for n in range(ini, fim + 1, ARGS["passo"]):
     nome = f"quadro_{n:04d}.ply"
     if nome not in quadros:
         print(f"[aviso] {nome} não existe; pulando")
