@@ -51,21 +51,29 @@ export function measureNozzle(
   return { v: len > 0 ? sum / len : 0, flux: sum };
 }
 
-/** Média da pressão (p' = P − P₀) sobre o plano da boca C. */
+/**
+ * Média da pressão (p' = P − P₀) na entrada do duto. Amostra uma faixa de
+ * 0.05–0.15 m PARA DENTRO da boca C: exatamente no plano da boca a média
+ * seria contaminada pela estagnação do escoamento externo que contorna o
+ * lábio (em especial no 2D, onde o bloqueio do canal é grande).
+ */
 export function measureMouthPressure(
   g: Grid2D, geo: IntakeGeometry,
 ): number {
   const dx = g.dx;
-  const i = Math.max(0, Math.floor(geo.xC / dx) - 1); // coluna logo DENTRO da boca
+  const i0 = Math.max(0, Math.floor((geo.xC - 0.15) / dx));
+  const i1 = Math.max(0, Math.floor((geo.xC - 0.05) / dx));
   let sum = 0;
   let n = 0;
-  for (let j = 0; j < g.ny; j++) {
-    const y = (j + 0.5) * dx;
-    if (y < geo.mouthY0 || y > geo.mouthY1) continue;
-    const k = g.ic(i, j);
-    if (g.cellType[k] !== FLUID) continue;
-    sum += g.p[k];
-    n++;
+  for (let i = i0; i <= i1; i++) {
+    for (let j = 0; j < g.ny; j++) {
+      const y = (j + 0.5) * dx;
+      if (y < geo.mouthY0 || y > geo.mouthY1) continue;
+      const k = g.ic(i, j);
+      if (g.cellType[k] !== FLUID) continue;
+      sum += g.p[k];
+      n++;
+    }
   }
   return n > 0 ? sum / n : 0;
 }
@@ -136,8 +144,10 @@ export function traceCaptureFraction(
       x += dtT * u2;
       y += dtT * v2;
       if (recordPaths && n % 4 === 0) { rec.push(x, y); }
-      // capturado: entrou no tubo (dentro do canal interno, subindo)
-      if (x < geo.xC && Math.abs(x - geo.xTube) < p.D / 2 + p.elbowR && y > geo.mouthY1 + p.elbowR) {
+      // capturado: DENTRO do trecho vertical interno do tubo (o critério
+      // largo anterior contava água de galgamento por cima do duto como
+      // capturada — achado da revisão adversarial)
+      if (Math.abs(x - geo.xTube) < p.D / 2 && y > geo.mouthY1 + p.elbowR) {
         captured = true;
         break;
       }

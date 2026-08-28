@@ -37,6 +37,8 @@ export class PressureSolver2D {
   private z: Float64Array;
   private s: Float64Array;
   private q: Float64Array;
+  /** Pressão do passo anterior — chute inicial do PCG (warm start). */
+  private pPrev: Float64Array;
 
   maxIterations = 200;
   tolerance = 1e-6;
@@ -53,6 +55,7 @@ export class PressureSolver2D {
     this.z = new Float64Array(nc);
     this.s = new Float64Array(nc);
     this.q = new Float64Array(nc);
+    this.pPrev = new Float64Array(nc);
   }
 
   /** θ (fração molhada) entre célula fluida kF e célula de ar kA. */
@@ -185,7 +188,16 @@ export class PressureSolver2D {
       }
     }
 
+    // Warm start: a pressão do passo anterior é um chute inicial excelente
+    // (o campo varia pouco entre passos) — corta ~2–3× as iterações do PCG.
+    // A tolerância continua relativa à norma do RHS (escala do problema),
+    // então o critério de parada é o mesmo do arranque a frio.
+    for (let k = 0; k < g.p.length; k++) {
+      g.p[k] = (g.cellType[k] === FLUID && Adiag[k] > 0) ? this.pPrev[k] : 0;
+    }
+
     const res = this.pcg();
+    this.pPrev.set(g.p);
     this.applyGradient(dt, rho, gmag);
     return res;
   }
@@ -289,9 +301,13 @@ export class PressureSolver2D {
     const { r, z, s, rhs } = this;
     const p = g.p;
 
-    r.set(rhs);
-    const r0 = this.maxAbs(r);
-    if (r0 < 1e-14) return { iterations: 0, relResidual: 0 };
+    // r = b − A·x₀ (x₀ = warm start; com x₀ = 0 é o clássico r = b)
+    this.applyA(z, p);
+    for (let k = 0; k < r.length; k++) r[k] = rhs[k] - z[k];
+    const r0 = Math.max(this.maxAbs(rhs), 1e-30);
+    if (this.maxAbs(r) < 1e-14 || r0 < 1e-14) {
+      return { iterations: 0, relResidual: 0 };
+    }
 
     this.buildPrecon();
     this.applyPrecon(z, r);

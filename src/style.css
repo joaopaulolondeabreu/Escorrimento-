@@ -1,0 +1,262 @@
+/* Escorrimento — tema escuro, HTML/CSS puro (§2, §10) */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0d0f14;
+  --panel: #161a22;
+  --panel2: #1d2230;
+  --text: #dfe6ee;
+  --muted: #8b96a5;
+  --accent: #58b7e6;
+  --accent2: #ffc83c;
+  --ok: #6fce8f;
+  --warn: #e6b358;
+  --bad: #e66d6d;
+}
+
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  overflow: hidden;
+}
+
+#layout {
+  display: grid;
+  grid-template-columns: 300px 1fr 330px;
+  height: 100vh;
+}
+
+/* ---------------- painel esquerdo ---------------- */
+#painel-wrap {
+  background: var(--panel);
+  overflow-y: auto;
+  padding: 14px;
+  border-right: 1px solid #262c38;
+}
+#painel-wrap h1 {
+  font-size: 20px;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+}
+.subtitulo { color: var(--muted); font-size: 12px; margin: 4px 0 12px; }
+
+.painel-secao {
+  background: var(--panel2);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+.painel-secao h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+.controle { margin: 8px 0; }
+.controle label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  cursor: help;
+}
+.controle .valor { color: var(--accent2); font-variant-numeric: tabular-nums; }
+.controle input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.controle select {
+  width: 100%;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid #333c4d;
+  border-radius: 5px;
+  padding: 4px;
+}
+
+.botoes { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+button {
+  background: #232a3a;
+  color: var(--text);
+  border: 1px solid #333c4d;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+button:hover { background: #2c3550; }
+button.ativo { background: #2a4a68; border-color: var(--accent); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.rodape { color: var(--muted); font-size: 11px; margin-top: 10px; }
+.rodape code { color: var(--accent2); }
+
+/* ---------------- área central ---------------- */
+#tela-wrap {
+  position: relative;
+  overflow: hidden;
+  background: #000;
+}
+#tela, #overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+#overlay { cursor: grab; }
+#overlay:active { cursor: grabbing; }
+
+#avisos {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  max-width: 520px;
+}
+.aviso-caixa {
+  background: rgba(160, 60, 50, 0.92);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+.aviso-caixa.aviso-info { background: rgba(40, 70, 110, 0.92); }
+.aviso-fechar {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  opacity: 0.75;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ---------------- HUD direito ---------------- */
+#hud-wrap {
+  background: var(--panel);
+  border-left: 1px solid #262c38;
+  padding: 14px;
+  overflow-y: auto;
+}
+#hud-wrap h2 { font-size: 15px; margin-bottom: 8px; cursor: help; }
+
+.hud-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.hud-table th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom: 1px solid #333c4d;
+  padding: 3px 4px;
+}
+.hud-table td { padding: 3px 4px; border-bottom: 1px solid #232a3a; }
+.hud-table td.ok { color: var(--ok); }
+.hud-table td.warn { color: var(--warn); }
+.hud-table td.bad { color: var(--bad); }
+.hud-table td.un { color: var(--muted); font-size: 11px; }
+
+.hud-diag {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.hud-diag span { cursor: help; }
+
+.hud-warn {
+  margin-top: 10px;
+  background: rgba(160, 60, 50, 0.25);
+  border: 1px solid var(--bad);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 12px;
+}
+.hud-note {
+  margin-top: 10px;
+  background: rgba(60, 90, 130, 0.18);
+  border: 1px solid #33507a;
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 11.5px;
+  color: #aebdd0;
+}
+
+/* ---------------- barra de abas (só aparece no celular) ---------------- */
+#abas-celular {
+  display: none;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--panel2);
+  border-top: 1px solid #262c38;
+  border-bottom: 1px solid #262c38;
+}
+#abas-celular button { flex: 1; padding: 11px 8px; font-size: 13.5px; }
+
+@media (max-width: 1100px) {
+  #layout { grid-template-columns: 260px 1fr; }
+  #hud-wrap { display: none; }
+}
+
+/* ---------------- celular e telas estreitas (§10) ----------------
+   O layout de três colunas não cabe num telefone: vira uma coluna com a
+   simulação em cima e, embaixo, abas para "Controles" e "Medições".
+   A área da simulação recebe touch-action: none para que arrastar e a
+   pinça controlem a câmera em vez de rolar/ampliar a página. */
+@media (max-width: 780px), (pointer: coarse) and (max-width: 1024px) {
+  #layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 46vh) auto minmax(0, 1fr);
+    height: 100vh;
+    height: 100dvh;            /* desconta a barra do navegador móvel */
+  }
+  #tela-wrap { grid-row: 1; grid-column: 1; }
+  #abas-celular { grid-row: 2; grid-column: 1; display: flex; }
+  #painel-wrap, #hud-wrap {
+    grid-row: 3;
+    grid-column: 1;
+    display: block;            /* anula o display:none da regra de 1100px */
+    border: none;
+    padding: 12px 12px 28px;
+    -webkit-overflow-scrolling: touch;
+  }
+  #layout[data-aba="medicoes"] #painel-wrap { display: none; }
+  #layout[data-aba="controles"] #hud-wrap { display: none; }
+
+  #painel-wrap header h1 { font-size: 17px; }
+  .subtitulo, .atalhos-teclado { display: none; }
+
+  /* alvos de toque confortáveis */
+  button { padding: 9px 12px; font-size: 13.5px; }
+  .controle input[type="range"] { height: 32px; }
+  .controle select { padding: 8px; font-size: 14px; }
+  .controle label { font-size: 13px; }
+  #avisos { left: 8px; right: 8px; transform: none; max-width: none; }
+}
+
+/* Celular deitado: a tela é baixa demais para empilhar — painel vai ao lado. */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 560px) {
+  #layout {
+    grid-template-columns: 1fr minmax(230px, 40vw);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  #tela-wrap { grid-column: 1; grid-row: 1 / span 2; }
+  #abas-celular { grid-column: 2; grid-row: 1; }
+  #painel-wrap, #hud-wrap { grid-column: 2; grid-row: 2; }
+}
+
+/* A câmera é controlada por arrastar/pinça: o navegador não deve interceptar. */
+#tela, #overlay {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Escorrimento — Simulador CFD de captação de água por locomotiva</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='24' font-size='24'%3E%F0%9F%9A%82%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+  <div id="layout">
+    <aside id="painel-wrap">
+      <header>
+        <h1>Escorrimento</h1>
+        <p class="subtitulo">Captação de água por locomotiva em movimento —
+          Navier–Stokes com superfície livre (FLIP/APIC)</p>
+      </header>
+      <div id="painel"></div>
+      <footer class="rodape">
+        <p class="atalhos-teclado">Espaço: pausar · M: modo científico ·
+          &nbsp;·&nbsp; arraste/roda: câmera</p>
+        <p>Física derivada em <code>docs/FISICA.md</code>; limitações honestas no <code>README</code>.</p>
+      </footer>
+    </aside>
+    <main id="tela-wrap">
+      <canvas id="tela"></canvas>
+      <canvas id="overlay"></canvas>
+      <div id="avisos"></div>
+    </main>
+    <nav id="abas-celular" aria-label="Seções (celular)">
+      <button type="button" data-aba="controles" class="ativo">Controles</button>
+      <button type="button" data-aba="medicoes">Medições</button>
+    </nav>
+    <aside id="hud-wrap">
+      <h2 title="Comparação ao vivo entre a simulação e a solução analítica (§6.2)">Medição × Teoria</h2>
+      <div id="hud"></div>
+    </aside>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

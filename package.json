@@ -6,18 +6,23 @@
   "description": "Simulador CFD (FLIP/APIC) de captação de água por locomotiva, com validação analítica",
   "scripts": {
     "dev": "vite",
+    "celular": "node scripts/celular.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "validate": "tsx src/tests/validate.ts"
+    "validate": "tsx src/tests/validate.ts",
+    "export:blender": "tsx src/tests/export3d.ts",
+    "render:blender": "node scripts/renderizar.mjs",
+    "video:blender": "node scripts/video.mjs"
   },
   "dependencies": {
     "gl-matrix": "^3.4.3"
   },
   "devDependencies": {
-    "typescript": "^5.6.3",
+    "@types/node": "^26.2.0",
     "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
     "vite": "^5.4.11",
     "vitest": "^2.1.8"
   }
