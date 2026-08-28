@@ -61,6 +61,11 @@ def parse_args():
             out["gpu"] = a.split("=")[1].upper()   # OPTIX, CUDA, HIP, ...
         elif a in ("--hibrido", "--cpu-junto"):
             out["hibrido"] = True
+        elif a.startswith("-"):
+            # Um parâmetro escrito errado (um "]" colado no fim, por exemplo)
+            # passava despercebido como argumento posicional e a opção era
+            # silenciosamente ignorada — agora o script avisa.
+            print(f"[aviso] parâmetro desconhecido, ignorado: {a}")
         else:
             pos.append(a)
     if len(pos) >= 1:

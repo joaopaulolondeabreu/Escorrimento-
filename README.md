@@ -167,6 +167,14 @@ continua na CPU se não houver; `--hibrido` soma o processador à placa
 troca ruído por tempo (com o denoise ligado, 48 costuma bastar); `--passo=2`
 renderiza um quadro sim, outro não — junte o vídeo com metade do fps.
 
+Para juntar os quadros num vídeo sem instalar mais nada (o próprio Blender
+faz a codificação, e a numeração salteada do `--passo` é tratada):
+
+```bash
+npm run video:blender -- exports/render 12   # pasta e quadros por segundo
+# → exports/render/captacao.mp4
+```
+
 O passo 2 procura o Blender nos lugares habituais (PATH, *Program Files*,
 Steam, `/Applications`, snap/flatpak). Se ele estiver instalado num lugar
 incomum, informe o caminho:
