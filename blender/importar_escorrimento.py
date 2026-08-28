@@ -54,6 +54,8 @@ def parse_args():
             out["passo"] = max(1, int(a.split("=")[1]))
         elif a in ("--gpu", "--placa"):
             out["gpu"] = True
+        elif a.startswith("--gpu=") or a.startswith("--placa="):
+            out["gpu"] = a.split("=")[1].upper()   # OPTIX, CUDA, HIP, ...
         else:
             pos.append(a)
     if len(pos) >= 1:
@@ -149,12 +151,14 @@ scene.cycles.samples = ARGS["samples"]
 scene.cycles.use_denoising = True
 
 
-def usar_gpu():
+def usar_gpu(preferido=None):
     """Liga o Cycles na placa de vídeo, se houver uma utilizável.
 
     Percorre os back-ends na ordem de preferência (OptiX e CUDA em NVIDIA,
-    HIP em AMD, Metal em Mac, oneAPI em Intel). Sem placa compatível, avisa
-    e continua na CPU — renderizar mais devagar é melhor do que abortar.
+    HIP em AMD, Metal em Mac, oneAPI em Intel) ou usa só o `preferido`, se
+    informado (--gpu=cuda, por exemplo, para contornar um driver antigo).
+    Sem placa compatível, avisa e continua na CPU — renderizar mais devagar
+    é melhor do que abortar no meio de uma sequência.
     """
     try:
         prefs = bpy.context.preferences.addons["cycles"].preferences
@@ -168,7 +172,8 @@ def usar_gpu():
             except Exception:
                 pass
             break
-    for tipo in ("OPTIX", "CUDA", "HIP", "METAL", "ONEAPI"):
+    ordem = (preferido,) if preferido else ("OPTIX", "CUDA", "HIP", "METAL", "ONEAPI")
+    for tipo in ordem:
         try:
             prefs.compute_device_type = tipo
         except (TypeError, ValueError):
@@ -181,14 +186,21 @@ def usar_gpu():
         scene.cycles.device = "GPU"
         print(f"Renderizando na GPU ({tipo}): "
               + ", ".join(d.name for d in placas))
+        if tipo == "OPTIX":
+            # o denoise do OptiX roda na própria placa e é bem mais rápido
+            def_enum(scene.cycles, "denoiser", "OPTIX", "OPENIMAGEDENOISE")
         return True
-    print("[aviso] nenhuma placa de vídeo compatível com o Cycles foi "
-          "encontrada; renderizando na CPU")
+    if preferido:
+        print(f"[aviso] nenhuma placa utilizável pelo back-end {preferido} "
+              "(driver antigo ou placa incompatível?); renderizando na CPU")
+    else:
+        print("[aviso] nenhuma placa de vídeo compatível com o Cycles foi "
+              "encontrada; renderizando na CPU")
     return False
 
 
 if ARGS["gpu"]:
-    usar_gpu()
+    usar_gpu(ARGS["gpu"] if isinstance(ARGS["gpu"], str) else None)
 scene.render.resolution_x, scene.render.resolution_y = ARGS["res"]
 # "Filmic" saiu da configuração padrão em versões novas; "AgX" o sucede.
 transform = def_enum(scene.view_settings, "view_transform", "Filmic", "AgX", "Standard")
