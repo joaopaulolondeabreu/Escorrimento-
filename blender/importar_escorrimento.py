@@ -60,6 +60,68 @@ def bl(x, y, z):
     return (x, z, y)
 
 
+# ------------------------------------------- compatibilidade entre versões
+# Nomes de enum e de soquete mudam entre versões do Blender (por exemplo, o
+# céu "NISHITA" do 3.x/4.x virou "SINGLE_SCATTERING"/"MULTIPLE_SCATTERING"
+# no 5.x, e "Transmission" virou "Transmission Weight" no 4.x). Em vez de
+# fixar nomes, o script pergunta ao próprio Blender o que existe e escolhe
+# a melhor opção disponível — assim ele não quebra na próxima versão.
+
+def def_enum(dado, prop, *preferencias):
+    """Tenta os valores em ordem e mantém o primeiro que a versão aceitar.
+
+    A tentativa direta é o caminho confiável: enums dinâmicos (a
+    transformação de vista e o look vêm da configuração OCIO) não expõem a
+    lista real por bl_rna — ela chega como um item de espaço reservado.
+    Não achando nenhum, deixa o valor padrão da versão e avisa.
+    """
+    if not hasattr(dado, prop):
+        print(f"[aviso] esta versão não tem a propriedade {prop}")
+        return None
+    for p in preferencias:
+        try:
+            setattr(dado, prop, p)
+            return p
+        except (TypeError, ValueError):
+            continue
+    atual = getattr(dado, prop, None)
+    print(f"[aviso] nenhum valor de {preferencias} serve para {prop}; "
+          f"mantendo o padrão ({atual})")
+    return atual
+
+
+def def_prop(dado, prop, valor):
+    """Atribui a propriedade só se ela existir nesta versão."""
+    if hasattr(dado, prop):
+        try:
+            setattr(dado, prop, valor)
+            return True
+        except Exception as erro:
+            print(f"[aviso] não consegui definir {prop}: {erro}")
+    return False
+
+
+def def_entrada(no, valor, *nomes):
+    """Atribui o primeiro soquete de entrada que existir entre os nomes."""
+    for n in nomes:
+        if n in no.inputs:
+            no.inputs[n].default_value = valor
+            return n
+    print(f"[aviso] nenhuma entrada {nomes} em {no.bl_idname} nesta versão")
+    return None
+
+
+def principled(node_tree):
+    """O nó Principled BSDF do material padrão, achado pelo tipo."""
+    for n in node_tree.nodes:
+        if n.bl_idname == "ShaderNodeBsdfPrincipled":
+            return n
+    return node_tree.nodes.new("ShaderNodeBsdfPrincipled")
+
+
+print(f"Blender {'.'.join(str(v) for v in bpy.app.version)}")
+
+
 # ------------------------------------------------------------------- limpeza
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -69,8 +131,12 @@ scene.cycles.samples = ARGS["samples"]
 scene.cycles.use_denoising = True
 scene.render.resolution_x = 1920
 scene.render.resolution_y = 1080
-scene.view_settings.view_transform = "Filmic"
-scene.view_settings.look = "Medium High Contrast"
+# "Filmic" saiu da configuração padrão em versões novas; "AgX" o sucede.
+transform = def_enum(scene.view_settings, "view_transform", "Filmic", "AgX", "Standard")
+def_enum(scene.view_settings, "look",
+         "Medium High Contrast", "AgX - Medium High Contrast",
+         "Filmic - Medium High Contrast", "None")
+print(f"Transformação de vista: {transform}")
 
 
 # ------------------------------------------------------------------ materiais
@@ -82,19 +148,15 @@ def mat_agua():
     nt.nodes.clear()
     out = nt.nodes.new("ShaderNodeOutputMaterial")
     bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
-    bsdf.inputs["Base Color"].default_value = (0.9, 0.96, 1.0, 1.0)
-    bsdf.inputs["Roughness"].default_value = 0.02
-    bsdf.inputs["IOR"].default_value = 1.333
-    # Blender 4.x: "Transmission Weight"; 3.x: "Transmission"
-    for nome in ("Transmission Weight", "Transmission"):
-        if nome in bsdf.inputs:
-            bsdf.inputs[nome].default_value = 1.0
-            break
+    def_entrada(bsdf, (0.9, 0.96, 1.0, 1.0), "Base Color")
+    def_entrada(bsdf, 0.02, "Roughness")
+    def_entrada(bsdf, 1.333, "IOR")
+    def_entrada(bsdf, 1.0, "Transmission Weight", "Transmission")
     nt.links.new(bsdf.outputs["BSDF"], out.inputs["Surface"])
     # Absorção volumétrica (tom verde-azulado da água real com profundidade)
     vol = nt.nodes.new("ShaderNodeVolumeAbsorption")
-    vol.inputs["Color"].default_value = (0.36, 0.68, 0.75, 1.0)
-    vol.inputs["Density"].default_value = 0.9
+    def_entrada(vol, (0.36, 0.68, 0.75, 1.0), "Color")
+    def_entrada(vol, 0.9, "Density")
     nt.links.new(vol.outputs["Volume"], out.inputs["Volume"])
     return m
 
@@ -102,10 +164,10 @@ def mat_agua():
 def mat_aco():
     m = bpy.data.materials.new("Aco")
     m.use_nodes = True
-    b = m.node_tree.nodes["Principled BSDF"]
-    b.inputs["Base Color"].default_value = (0.35, 0.37, 0.40, 1.0)
-    b.inputs["Metallic"].default_value = 1.0
-    b.inputs["Roughness"].default_value = 0.35
+    b = principled(m.node_tree)
+    def_entrada(b, (0.35, 0.37, 0.40, 1.0), "Base Color")
+    def_entrada(b, 1.0, "Metallic")
+    def_entrada(b, 0.35, "Roughness")
     return m
 
 
@@ -113,15 +175,15 @@ def mat_leito():
     m = bpy.data.materials.new("Leito")
     m.use_nodes = True
     nt = m.node_tree
-    b = nt.nodes["Principled BSDF"]
+    b = principled(nt)
     noise = nt.nodes.new("ShaderNodeTexNoise")
-    noise.inputs["Scale"].default_value = 60.0
+    def_entrada(noise, 60.0, "Scale")
     ramp = nt.nodes.new("ShaderNodeValToRGB")
     ramp.color_ramp.elements[0].color = (0.05, 0.07, 0.06, 1)
     ramp.color_ramp.elements[1].color = (0.16, 0.15, 0.12, 1)
     nt.links.new(noise.outputs["Fac"], ramp.inputs["Fac"])
     nt.links.new(ramp.outputs["Color"], b.inputs["Base Color"])
-    b.inputs["Roughness"].default_value = 0.9
+    def_entrada(b, 0.9, "Roughness")
     return m
 
 
@@ -202,10 +264,14 @@ world.use_nodes = True
 wn = world.node_tree
 wn.nodes.clear()
 sky = wn.nodes.new("ShaderNodeTexSky")
-sky.sky_type = "NISHITA"
-sky.sun_elevation = math.radians(12)
-sky.sun_rotation = math.radians(230)
-sky.sun_intensity = 0.6
+# 3.x/4.x: "NISHITA"; 5.x renomeou o modelo físico para os dois de
+# espalhamento. Escolhe o mais próximo que existir nesta versão.
+modelo = def_enum(sky, "sky_type", "NISHITA", "MULTIPLE_SCATTERING",
+                  "SINGLE_SCATTERING", "HOSEK_WILKIE", "PREETHAM")
+print(f"Modelo de céu: {modelo}")
+def_prop(sky, "sun_elevation", math.radians(12))
+def_prop(sky, "sun_rotation", math.radians(230))
+def_prop(sky, "sun_intensity", 0.6)
 bg = wn.nodes.new("ShaderNodeBackground")
 out = wn.nodes.new("ShaderNodeOutputWorld")
 wn.links.new(sky.outputs["Color"], bg.inputs["Color"])
@@ -263,19 +329,27 @@ def montar_agua(caminho_ply):
         tree.outputs.new("NodeSocketGeometry", "Geometry")
     n_in = tree.nodes.new("NodeGroupInput")
     n_out = tree.nodes.new("NodeGroupOutput")
-    m2p = tree.nodes.new("GeometryNodeMeshToPoints")
-    p2v = tree.nodes.new("GeometryNodePointsToVolume")
-    v2m = tree.nodes.new("GeometryNodeVolumeToMesh")
+    try:
+        m2p = tree.nodes.new("GeometryNodeMeshToPoints")
+        p2v = tree.nodes.new("GeometryNodePointsToVolume")
+        v2m = tree.nodes.new("GeometryNodeVolumeToMesh")
+    except RuntimeError as erro:
+        raise SystemExit(
+            "Esta versão do Blender não tem os nós Points→Volume→Mesh usados "
+            f"para reconstruir a superfície da água ({erro}). Use uma versão "
+            "3.6 ou 4.x, ou abra um chamado no projeto informando a versão."
+        )
     setmat = tree.nodes.new("GeometryNodeSetMaterial")
     shade = tree.nodes.new("GeometryNodeSetShadeSmooth")
 
     r = CENA["raio_particula"]
-    p2v.inputs["Radius"].default_value = 1.7 * r
-    p2v.resolution_mode = "VOXEL_SIZE"
-    p2v.inputs["Voxel Size"].default_value = max(0.8 * r, 0.012)
-    v2m.resolution_mode = "VOXEL_SIZE"
-    v2m.inputs["Voxel Size"].default_value = max(0.8 * r, 0.012)
-    setmat.inputs["Material"].default_value = M_AGUA
+    voxel = max(0.8 * r, 0.012)
+    def_entrada(p2v, 1.7 * r, "Radius")
+    def_enum(p2v, "resolution_mode", "VOXEL_SIZE", "VOXEL_AMOUNT")
+    def_entrada(p2v, voxel, "Voxel Size")
+    def_enum(v2m, "resolution_mode", "VOXEL_SIZE", "VOXEL_AMOUNT", "GRID")
+    def_entrada(v2m, voxel, "Voxel Size")
+    def_entrada(setmat, M_AGUA, "Material")
 
     lk = tree.links.new
     lk(n_in.outputs[0], m2p.inputs["Mesh"])

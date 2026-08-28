@@ -234,9 +234,32 @@ Para "água idêntica à vida real", o corte 2D interativo tem teto físico
    absorção volumétrica), monta tubo/canal/reservatório a partir do
    cena.json, ilumina com céu Nishita + sol e renderiza em Cycles.
 
-A física é 100% do nosso solver; o Blender é só renderizador. Compatível
-com Blender 3.6+/4.x (importador PLY e sockets de GN com fallback; builds
-sem OpenImageDenoise caem para render sem denoise automaticamente).
+A física é 100% do nosso solver; o Blender é só renderizador.
+
+**Tolerância a versões.** O script é executado por Blenders de 3.6 a 5.x, e
+cada geração renomeia coisas: `Transmission` virou `Transmission Weight`
+(4.0), `import_mesh.ply` virou `wm.ply_import` (4.0), a interface de grupos
+de Geometry Nodes mudou (4.0), o céu `NISHITA` virou
+`SINGLE_SCATTERING`/`MULTIPLE_SCATTERING` (5.0) e os nós de volume perderam
+`resolution_mode` (5.x). Em vez de fixar nomes, o script tenta os valores em
+ordem de preferência e fica com o primeiro que a versão aceitar
+(`def_enum`, `def_prop`, `def_entrada`), avisando no terminal o que
+escolheu. A tentativa direta é necessária: enums vindos da configuração OCIO
+(transformação de vista, look) não expõem a lista real por `bl_rna` — a
+primeira versão desta correção lia `enum_items` e quebrou justamente aí, no
+teste de regressão em 4.0.2.
+
+Verificado nas duas pontas com renderização real do mesmo quadro:
+**Blender 4.0.2** (escolhe Filmic + NISHITA; build sem OpenImageDenoise, cai
+para render sem denoise) e **Blender 5.2.1 LTS** (escolhe Filmic +
+MULTIPLE_SCATTERING, avisa que `resolution_mode` não existe mais e usa o
+tamanho de voxel pelos soquetes). As duas imagens saem corretas; o céu do
+5.x é mais frio que o do 4.x porque o modelo de espalhamento é outro.
+
+`npm run render:blender` localiza o executável do Blender sozinho (PATH,
+Program Files, Steam, /Applications, snap/flatpak) e aceita a variável
+`BLENDER` para instalações fora do comum — o caminho fixo do README anterior
+falhava assim que a versão instalada era diferente.
 
 ## 12. Execução no celular (interface, entrada e compatibilidade)
 
