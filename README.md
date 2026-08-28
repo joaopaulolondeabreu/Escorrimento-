@@ -161,7 +161,8 @@ npm run render:blender -- exports 1 96 --gpu --res=720p --samples=48 --passo=2
 `--gpu` usa a placa de vídeo se houver uma compatível com o Cycles (OptiX,
 CUDA, HIP, Metal ou oneAPI, nessa ordem — `--gpu=cuda` força um back-end
 específico; com OptiX o denoise também passa a rodar na placa) e avisa e
-continua na CPU se não houver;
+continua na CPU se não houver; `--hibrido` soma o processador à placa
+(ganho tipicamente de 10 a 25%, e a máquina fica pesada para outras coisas);
 `--res` aceita `720p`, `1080p`, `1440p`, `4k` ou `1600x900`; `--samples`
 troca ruído por tempo (com o denoise ligado, 48 costuma bastar); `--passo=2`
 renderiza um quadro sim, outro não — junte o vídeo com metade do fps.

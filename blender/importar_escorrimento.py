@@ -19,6 +19,9 @@ Uso (Blender 3.6+ / 4.x, testado headless):
     blender -b -P blender/importar_escorrimento.py -- exports 1 96 \
         --gpu --res=720p --samples=48 --passo=2
 
+    # placa + processador juntos (ganho modesto, máquina fica pesada):
+    blender -b -P blender/importar_escorrimento.py -- exports 1 96 --gpu --hibrido
+
 Saída: exports/render/quadro_####.png
 """
 
@@ -36,7 +39,7 @@ def parse_args():
     argv = sys.argv
     argv = argv[argv.index("--") + 1:] if "--" in argv else []
     out = {"dir": "exports", "ini": None, "fim": None, "samples": 128,
-           "res": (1920, 1080), "gpu": False, "passo": 1}
+           "res": (1920, 1080), "gpu": False, "hibrido": False, "passo": 1}
     pos = []
     for a in argv:
         if a.startswith("--samples="):
@@ -56,6 +59,8 @@ def parse_args():
             out["gpu"] = True
         elif a.startswith("--gpu=") or a.startswith("--placa="):
             out["gpu"] = a.split("=")[1].upper()   # OPTIX, CUDA, HIP, ...
+        elif a in ("--hibrido", "--cpu-junto"):
+            out["hibrido"] = True
         else:
             pos.append(a)
     if len(pos) >= 1:
@@ -151,7 +156,7 @@ scene.cycles.samples = ARGS["samples"]
 scene.cycles.use_denoising = True
 
 
-def usar_gpu(preferido=None):
+def usar_gpu(preferido=None, hibrido=False):
     """Liga o Cycles na placa de vídeo, se houver uma utilizável.
 
     Percorre os back-ends na ordem de preferência (OptiX e CUDA em NVIDIA,
@@ -181,11 +186,19 @@ def usar_gpu(preferido=None):
         placas = [d for d in prefs.devices if d.type == tipo]
         if not placas:
             continue
+        # No modo híbrido o processador entra como dispositivo adicional. O
+        # ganho é limitado pela razão entre os dois: somar uma CPU três vezes
+        # mais lenta que a placa corta ~25% do tempo, no melhor caso, e parte
+        # disso se perde na coordenação — e a máquina fica pesada para usar.
+        cpus = [d for d in prefs.devices if d.type == "CPU"]
         for d in prefs.devices:
-            d.use = (d.type == tipo)
+            d.use = (d.type == tipo) or (hibrido and d.type == "CPU")
         scene.cycles.device = "GPU"
         print(f"Renderizando na GPU ({tipo}): "
               + ", ".join(d.name for d in placas))
+        if hibrido:
+            print("Processador somado à renderização: "
+                  + (", ".join(d.name for d in cpus) or "nenhum encontrado"))
         if tipo == "OPTIX":
             # o denoise do OptiX roda na própria placa e é bem mais rápido
             def_enum(scene.cycles, "denoiser", "OPTIX", "OPENIMAGEDENOISE")
@@ -200,7 +213,10 @@ def usar_gpu(preferido=None):
 
 
 if ARGS["gpu"]:
-    usar_gpu(ARGS["gpu"] if isinstance(ARGS["gpu"], str) else None)
+    usar_gpu(ARGS["gpu"] if isinstance(ARGS["gpu"], str) else None,
+             hibrido=ARGS["hibrido"])
+elif ARGS["hibrido"]:
+    print("[aviso] --hibrido só faz sentido junto com --gpu; ignorado")
 scene.render.resolution_x, scene.render.resolution_y = ARGS["res"]
 # "Filmic" saiu da configuração padrão em versões novas; "AgX" o sucede.
 transform = def_enum(scene.view_settings, "view_transform", "Filmic", "AgX", "Standard")
