@@ -146,9 +146,18 @@ o Blender entra só como renderizador**. Pipeline testado de ponta a ponta:
 # 1) roda a simulação 3D e exporta as partículas (PLY por quadro):
 npm run export:blender          # padrões: V=8, 4 s, 24 fps → exports/
 
-# 2) renderiza (Blender 3.6+ instalado localmente):
-blender -b -P blender/importar_escorrimento.py -- exports 1 96 --samples=256
+# 2) renderiza (Blender 3.6+ instalado; o script acha o executável sozinho):
+npm run render:blender -- exports 1 96 --samples=256
 # → exports/render/quadro_####.png (junte em vídeo com ffmpeg)
+```
+
+O passo 2 procura o Blender nos lugares habituais (PATH, *Program Files*,
+Steam, `/Applications`, snap/flatpak). Se ele estiver instalado num lugar
+incomum, informe o caminho:
+
+```powershell
+$env:BLENDER = "D:\Blender\blender.exe"   # PowerShell
+npm run render:blender -- exports 1 96
 ```
 
 Exemplo real produzido por esse pipeline (48 amostras, sem denoise):
